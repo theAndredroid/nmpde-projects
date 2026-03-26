@@ -18,12 +18,11 @@ Extrude {0, b, 0} { Line{1};  Layers{b / h}; Recombine; }
 Extrude {0, 0, c} { Surface{5};  Layers{c / h}; Recombine; }
 
 // Define the tags.
-// Physical Line(0) = {3};
-// Physical Line(1) = {4};
-// Physical Line(2) = {1};
-// Physical Line(3) = {2};
+Physical Line(1) = {1, 2, 3, 4, 7, 8, 9, 10, 12, 13, 17, 21};
 
-// Physical Surface(10) = {5};
+Physical Surface(10) = {5, 14, 18, 22, 26, 27};
+
+Physical Volume(20) = {1};
 
 // Generate a 2D mesh.
 Mesh 3;
