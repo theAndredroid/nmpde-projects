@@ -77,7 +77,9 @@ protected:
   void
   solve_linear_system();
 
-  // void compute_ionic_currents();
+  void integrate_auxiliar_variables();
+
+  void compute_ionic_currents();
 
   // Output.
   void
