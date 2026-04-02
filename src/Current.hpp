@@ -71,8 +71,8 @@ protected:
   setup();
 
   // System assembly.
-  // void
-  // assemble();
+  void
+  assemble();
 
   // System solution.
   void
@@ -101,7 +101,7 @@ protected:
   // Time step.
   const double delta_t;
 
-  // Current time.
+  // Current time in ms.
   double time = 0.0;
 
   // Current timestep number.

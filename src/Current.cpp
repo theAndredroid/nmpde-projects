@@ -309,108 +309,111 @@ void Current::compute_ionic_currents(){
 
 // ============================================================
 
-// void
-// Current::assemble()
-// {
-//   // Number of local DoFs for each element.
-//   const unsigned int dofs_per_cell = fe->dofs_per_cell;
+ void
+ Current::assemble()
+ {
+   // Number of local DoFs for each element.
+   const unsigned int dofs_per_cell = fe->dofs_per_cell;
 
-//   // Number of quadrature points for each element.
-//   const unsigned int n_q = quadrature->size();
+   // Number of quadrature points for each element.
+   const unsigned int n_q = quadrature->size();
 
-//   FEValues<dim> fe_values(*fe,
-//                           *quadrature,
-//                           update_values | update_gradients |
-//                             update_quadrature_points | update_JxW_values);
+   FEValues<dim> fe_values(*fe,
+                           *quadrature,
+                           update_values | update_gradients |
+                             update_quadrature_points | update_JxW_values);
 
-//   // Local matrix and vector.
-//   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-//   Vector<double>     cell_rhs(dofs_per_cell);
+   // Local matrix and vector.
+   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+   Vector<double>     cell_rhs(dofs_per_cell);
 
-//   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
+   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
-//   // Reset the global matrix and vector, just in case.
-//   system_matrix = 0.0;
-//   system_rhs    = 0.0;
+   // Reset the global matrix and vector, just in case.
+   system_matrix = 0.0;
+   system_rhs    = 0.0;
 
-//   // Evaluation of the old solution on quadrature nodes of current cell.
-//   std::vector<double> solution_old_values(n_q);
+   // Evaluation of the old solution on quadrature nodes of current cell.
+   std::vector<double> solution_old_values(n_q);
 
-//   // Evaluation of the gradient of the old solution on quadrature nodes of
-//   // current cell.
-//   std::vector<Tensor<1, dim>> solution_old_grads(n_q);
+   // Evaluation of the gradient of the old solution on quadrature nodes of
+   // current cell.
+   std::vector<Tensor<1, dim>> solution_old_grads(n_q);
 
-//   for (const auto &cell : dof_handler.active_cell_iterators())
-//     {
-//       if (!cell->is_locally_owned())
-//         continue;
+   for (const auto &cell : dof_handler.active_cell_iterators())
+     {
+       if (!cell->is_locally_owned())
+         continue;
 
-//       fe_values.reinit(cell);
+       fe_values.reinit(cell);
 
-//       cell_matrix = 0.0;
-//       cell_rhs    = 0.0;
+       cell_matrix = 0.0;
+       cell_rhs    = 0.0;
 
-//       // Evaluate the old solution and its gradient on quadrature nodes.
-//       fe_values.get_function_values(solution, solution_old_values);
-//       fe_values.get_function_gradients(solution, solution_old_grads);
+       // Evaluate the old solution and its gradient on quadrature nodes.
+       fe_values.get_function_values(solution, solution_old_values);
+       fe_values.get_function_gradients(solution, solution_old_grads);
 
-//       for (unsigned int q = 0; q < n_q; ++q)
-//         {
-//           const double mu_loc = mu(fe_values.quadrature_point(q));
+       for (unsigned int q = 0; q < n_q; ++q)
+         {
+           
+           for (unsigned int i = 0; i < dofs_per_cell; ++i)
+             {
+               for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                 {
+                   // Time derivative term: (u - u_old) / delta_t
+                   cell_matrix(i, j) += (1.0 / delta_t) *             //
+                                        fe_values.shape_value(i, q) * //
+                                        fe_values.shape_value(j, q) * //
+                                        fe_values.JxW(q);
 
-//           const double f_old_loc =
-//             f(fe_values.quadrature_point(q), time - delta_t);
-//           const double f_new_loc = f(fe_values.quadrature_point(q), time);
+                   // Diffusion.
+                   cell_matrix(i, j) +=
+                     theta *   D   *                       //
+                     scalar_product(fe_values.shape_grad(i, q),   //
+                                    fe_values.shape_grad(j, q)) * //
+                     fe_values.JxW(q);
 
-//           for (unsigned int i = 0; i < dofs_per_cell; ++i)
-//             {
-//               for (unsigned int j = 0; j < dofs_per_cell; ++j)
-//                 {
-//                   // Time derivative.
-//                   cell_matrix(i, j) += (1.0 / delta_t) *             //
-//                                        fe_values.shape_value(i, q) * //
-//                                        fe_values.shape_value(j, q) * //
-//                                        fe_values.JxW(q);
+                 }
 
-//                   // Diffusion.
-//                   cell_matrix(i, j) +=
-//                     theta * mu_loc *                             //
-//                     scalar_product(fe_values.shape_grad(i, q),   //
-//                                    fe_values.shape_grad(j, q)) * //
-//                     fe_values.JxW(q);
-//                 }
+               // Time derivative.
+               cell_rhs(i) += (1.0 / delta_t) *             //
+                              fe_values.shape_value(i, q) * //
+                              solution_old_values[q] *      //
+                              fe_values.JxW(q);
 
-//               // Time derivative.
-//               cell_rhs(i) += (1.0 / delta_t) *             //
-//                              fe_values.shape_value(i, q) * //
-//                              solution_old_values[q] *      //
-//                              fe_values.JxW(q);
+               // Diffusion.
+               cell_rhs(i) -= (1.0 - theta) *                   //
+                              scalar_product(fe_values.shape_grad(i, q), //
+                                             solution_old_grads[q]) *    //
+                              fe_values.JxW(q);
 
-//               // Diffusion.
-//               cell_rhs(i) -= (1.0 - theta) * mu_loc *                   //
-//                              scalar_product(fe_values.shape_grad(i, q), //
-//                                             solution_old_grads[q]) *    //
-//                              fe_values.JxW(q);
+               // ionic currents
+               cell_rhs(i) -=
+                 ( J_fi_owned[i]+ J_so_owned[i]+ J_si_owned[i]) * //
+                 fe_values.shape_value(i, q) *                     //
+                 fe_values.JxW(q);
 
-//               // Forcing term.
-//               cell_rhs(i) +=
-//                 (theta * f_new_loc + (1.0 - theta) * f_old_loc) * //
-//                 fe_values.shape_value(i, q) *                     //
-//                 fe_values.JxW(q);
-//             }
-//         }
+              // the forcing term is a current applied on a cubic region
+              //on the sideof the domain
+              Point<dim> q_point = fe_values.quadrature_point(q);
+              if(q_point[0] <= 1.5 && q_point[1] <= 1.5 && q_point[2] <= 1.5 && time <= 2.0){
+                cell_rhs[i] += 50000 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
+              }
+             }
+         }
 
-//       cell->get_dof_indices(dof_indices);
+       cell->get_dof_indices(dof_indices);
 
-//       system_matrix.add(dof_indices, cell_matrix);
-//       system_rhs.add(dof_indices, cell_rhs);
-//     }
+       system_matrix.add(dof_indices, cell_matrix);
+       system_rhs.add(dof_indices, cell_rhs);
+     }
 
-//   system_matrix.compress(VectorOperation::add);
-//   system_rhs.compress(VectorOperation::add);
+   system_matrix.compress(VectorOperation::add);
+   system_rhs.compress(VectorOperation::add);
 
-//   // Homogeneous Neumann boundary conditions: we do nothing.
-// }
+   // Homogeneous Neumann boundary conditions: we do nothing.
+ }
 
 void
 Current::solve_linear_system()
@@ -485,8 +488,8 @@ Current::run()
 
     compute_ionic_currents();
 
-    // time            = 0.0;
-    // timestep_number = 0;
+    time            = 0.0;
+    timestep_number = 0;
 
     // Output initial condition.
     output();
@@ -495,25 +498,25 @@ Current::run()
   pcout << "===============================================" << std::endl;
 
   // Time-stepping loop.
-  // while (time < T - 0.5 * delta_t)
-  //   {
-  //     time += delta_t;
-  //     ++timestep_number;
+  while (time < T - 0.5 * delta_t)
+    {
+      time += delta_t;
+      ++timestep_number;
 
-  //     pcout << "Timestep " << std::setw(3) << timestep_number
-  //           << ", time = " << std::setw(4) << std::fixed << std::setprecision(2)
-  //           << time << " : ";
+      pcout << "Timestep " << std::setw(3) << timestep_number
+            << ", time = " << std::setw(4) << std::fixed << std::setprecision(2)
+            << time << " : ";
 
-  //     integrate_auxiliar_variables();
-  //     compute_ionic_currents();
+      integrate_auxiliar_variables();
+      compute_ionic_currents();
 
-  //     assemble();
-  //     solve_linear_system();
+      assemble();
+      solve_linear_system();
 
-  //     // Perform parallel communication to update the ghost values of the
-  //     // solution vector.
-  //     solution = solution_owned;
+      // Perform parallel communication to update the ghost values of the
+      // solution vector.
+      solution = solution_owned;
 
-  //     output();
-  //   }
+      output();
+    }
 }
