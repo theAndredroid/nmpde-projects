@@ -160,7 +160,40 @@ Current::setup()
 }
 
 void Current::integrate_auxiliar_variables(){
+  double v_owned_old;
+  double w_owned_old;
+  double s_owned_old;
   for (auto i: solution_owned.locally_owned_elements()){
+    v_owned_old = v_owned[i];
+    w_owned_old = w_owned[i];
+    s_owned_old = s_owned[i];
+    
+    if(solution_owned[i]< theta_v_m)
+      v_owned[i] = v_owned_old + delta_t * (1-v_owned_old)/tau_v1m;
+    else if(solution_owned[i]<theta_v)
+      v_owned[i] = v_owned_old + delta_t *(-v_owned_old/tau_v2m);
+    else
+      v_owned[i] = v_owned_old + delta_t *(-v_owned_old/tau_v_p);
+
+
+    double denom;
+    denom = 2*tau_w1_m + (tau_w2_m - tau_w1_m)*(1+ tanh(k_s*(solution_owned[i]-u_w_m)));
+
+    if(solution_owned[i]< theta_o)
+      w_owned[i] = w_owned_old + delta_t * (2 * (1 - solution_owned[i]) /tau_w_inf-w_owned_old) / denom;
+    else if(solution_owned[i]<theta_w)    
+      w_owned[i] = w_owned_old + delta_t * (2 * (w_inf_star-w_owned_old)) / denom;
+    else
+      w_owned[i] = w_owned_old + delta_t * (-w_owned_old/tau_w_p);
+
+
+    double num;
+    num = 1 + tanh(k_s*(solution_owned[i]-u_s)) - 2*s_owned_old;
+  
+    if(solution_owned[i]< theta_w)
+      s_owned[i] = s_owned_old + delta_t * num/(2*tau_s1);
+    else
+      s_owned[i] = s_owned_old + delta_t *num/(2*tau_s2);
 
   }
 }
@@ -168,10 +201,23 @@ void Current::integrate_auxiliar_variables(){
 void Current::compute_ionic_currents(){
   for (auto i: solution_owned.locally_owned_elements()){
     if (solution_owned[i] >= theta_v)
-      J_fi_owned[i] = w_owned[i] * (solution_owned[i] - theta_v) * (solution_owned[i] - u_u) / tau_fi;
+      J_fi_owned[i] = v_owned[i] * (solution_owned[i] - theta_v) * (solution_owned[i] - u_u) / tau_fi;
     else
       J_fi_owned[i] = 0.0;
-  }
+
+    if(solution_owned[i] < theta_o)  
+      J_so_owned[i] = (solution_owned[i] - u_o)/tau_o1;
+    else if(solution_owned[i] < theta_w)  
+      J_so_owned[i] = (solution_owned[i] - u_o)/tau_o2;
+    else
+      J_so_owned[i] = 2/(2*tau_so1 + (tau_so2-tau_so1)*( 1 + tanh(k_so*(solution_owned[i] - u_so))));
+    
+    if(solution_owned[i]>= theta_w)
+      J_si_owned[i] = -w_owned[i]*s_owned[i] / tau_s1;
+    else
+      J_si_owned[i] = 0.0; 
+
+  } 
 }
 
 // void
