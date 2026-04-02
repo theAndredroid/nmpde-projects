@@ -146,9 +146,9 @@ protected:
   TrilinosWrappers::MPI::Vector J_si_owned;
 
   // Currents, with ghost elements.
-  // TrilinosWrappers::MPI::Vector J_fi;
-  // TrilinosWrappers::MPI::Vector J_so;
-  // TrilinosWrappers::MPI::Vector J_si;
+  TrilinosWrappers::MPI::Vector J_fi;
+  TrilinosWrappers::MPI::Vector J_so;
+  TrilinosWrappers::MPI::Vector J_si;
 
   // Auxiliar variables, without ghost elements.
   TrilinosWrappers::MPI::Vector v_owned;

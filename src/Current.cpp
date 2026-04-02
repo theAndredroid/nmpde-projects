@@ -156,6 +156,10 @@ Current::setup()
     J_fi_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
     J_so_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
     J_si_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+
+    J_fi.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    J_so.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    J_si.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
   }
 }
 
@@ -218,6 +222,10 @@ void Current::compute_ionic_currents(){
       J_si_owned[i] = 0.0; 
 
   } 
+
+  J_fi = J_fi_owned;
+  J_so = J_so_owned;
+  J_si = J_si_owned;
 }
 
 // void
@@ -340,6 +348,10 @@ void Current::compute_ionic_currents(){
    // current cell.
    std::vector<Tensor<1, dim>> solution_old_grads(n_q);
 
+   std::vector<double> J_fi_values(n_q);
+   std::vector<double> J_so_values(n_q);
+   std::vector<double> J_si_values(n_q);
+
    for (const auto &cell : dof_handler.active_cell_iterators())
      {
        if (!cell->is_locally_owned())
@@ -353,6 +365,10 @@ void Current::compute_ionic_currents(){
        // Evaluate the old solution and its gradient on quadrature nodes.
        fe_values.get_function_values(solution, solution_old_values);
        fe_values.get_function_gradients(solution, solution_old_grads);
+
+       fe_values.get_function_values(J_fi, J_fi_values);
+       fe_values.get_function_values(J_so, J_so_values);
+       fe_values.get_function_values(J_si, J_si_values);
 
        for (unsigned int q = 0; q < n_q; ++q)
          {
@@ -383,14 +399,14 @@ void Current::compute_ionic_currents(){
                               fe_values.JxW(q);
 
                // Diffusion.
-               cell_rhs(i) -= (1.0 - theta) *                   //
+               cell_rhs(i) -= (1.0 - theta) * D *                 //
                               scalar_product(fe_values.shape_grad(i, q), //
                                              solution_old_grads[q]) *    //
                               fe_values.JxW(q);
 
                // ionic currents
                cell_rhs(i) -=
-                 ( J_fi_owned[i]+ J_so_owned[i]+ J_si_owned[i]) * //
+                 (J_fi_values[q] + J_so_values[q] + J_si_values[q]) * //
                  fe_values.shape_value(i, q) *                     //
                  fe_values.JxW(q);
 
@@ -429,7 +445,7 @@ Current::solve_linear_system()
   SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);
 
   solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-  pcout << solver_control.last_step() << "GMRES iterations" << std::endl;
+  pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
 }
 
 void
