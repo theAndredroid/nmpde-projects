@@ -28,5 +28,5 @@ Physical Volume(20) = {1};
 Mesh 3;
 
 // Save mesh to file.
-str_h = Sprintf("%f", h);
-Save StrCat("../build/mesh/mesh-square-h", str_h, ".msh");
+// str_h = Sprintf("%f", h);
+// Save StrCat("../build/mesh/mesh-square-h", str_h, ".msh");

@@ -8,7 +8,7 @@ main(int argc, char *argv[])
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
-  Current problem(/*mesh_filename = */ "mesh/mesh-square-h0.100000.msh",
+  Current problem(/*mesh_filename = */ "mesh/mesh-square.msh",
                /* degree = */ 1,
                /* T = */ 10.0,
                /* theta = */ 0.5, //crank-Nicolson
