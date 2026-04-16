@@ -1,0 +1,46 @@
+Hai chiesto una review completa del file: controllo subito errori oggettivi (compilazione/lint) e poi ti elenco i problemi logici/numerici più seri con priorità.
+
+Checked [](file:///home/annea/NPDE/nmpde-projects/src/Current.cpp), 2 problems found
+
+Sto passando ora ai bug matematici/FEM nel file: leggo con numeri di riga per citarti esattamente dove e perché.
+
+Ran terminal command:  nl -ba /home/annea/NPDE/nmpde-projects/src/Current.cpp | sed -n '1,260p'
+
+Read [](file:///home/annea/NPDE/nmpde-projects/src/Current.cpp#1-1), lines 1 to 280
+
+Read [](file:///home/annea/NPDE/nmpde-projects/src/Current.cpp#281-281), lines 281 to 522
+
+Ho trovato già alcuni punti critici; adesso estraggo i numeri di riga esatti dei passaggi sospetti così te li elenco in modo preciso e ordinato per gravità.
+
+Searched for regex `J_fi_owned\[i\]|J_so_owned\[i\]|J_si_owned\[i\]|cell_rhs\[i\]|shape_value\(i, q\)|if\(q_point\[0\]` (`**/src/Current.cpp`), 15 results
+
+Searched for regex `solution_old_grads\[q\]\) \*` (`**/src/Current.cpp`), 1 result
+
+**Findings (ordinati per gravita')**
+1. **Critico: correnti ioniche indicizzate in modo sbagliato in assemble**
+   In Current.cpp usi `J_fi_owned[i] + J_so_owned[i] + J_si_owned[i]`, ma qui `i` e' l'indice locale della shape function (`0..dofs_per_cell-1`), non il DoF globale
+   ne' il punto di quadratura. Questo porta a contributi fisicamente errati (stessi pochi valori riusati in ogni cella).  
+   Piu' coerente: valutare le correnti ai punti di quadratura (come fai con `solution_old_values[q]`) oppure mappare correttamente tramite `dof_indices`.
+
+2. **Alto: termine di diffusione nel RHS senza coefficiente D**
+   In Current.cpp il contributo con `solution_old_grads[q]` non moltiplica per `D`, mentre nella matrice il termine diffusivo include `theta * D` in Current.cpp.  
+   Se stai usando schema theta/Crank-Nicolson, nel RHS dovrebbe comparire anche `(1-theta) * D * ...`. Cosi' ora la discretizzazione e' incoerente.
+
+3. **Alto: possibile parametro sbagliato in J_si**
+   In Current.cpp usi `tau_s1` in `J_si_owned`, mentre hai definito `tau_si` in Current.cpp e non viene usato. Probabile typo di modello (calcio lento dovrebbe usare `tau_si`).
+
+4. **Medio: possibile typo nella dinamica di w**
+   In Current.cpp usi `tanh(k_s*(...-u_w_m))`, ma per `tau_w-` hai definito `k_w_m` in Current.cpp. Anche questo sembra un mismatch di parametri.
+
+5. **Medio: forcing corretto in forma FEM, ma stile/consistenza**
+   Il forcing in Current.cpp ora e' concettualmente giusto (`f * phi_i * JxW`).  
+   Solo rifinitura: usa `cell_rhs(i)` invece di `cell_rhs[i]` per coerenza con il resto.
+
+6. **Basso: errore ambiente/editor**
+   Da diagnostica, include path non configurato correttamente (errore su `deal.II` a Current.cpp). Questo sembra setup IDE, non bug del codice sorgente.
+
+**Domande aperte**
+1. Vuoi che ti prepari una patch minima che corregga i punti 2-3-4 subito?
+2. Per il punto 1 (il piu' importante), preferisci:
+   1. approccio rapido (valuto correnti da `solution_old_values[q]` e variabili ausiliarie interpolate),
+   2. approccio rigoroso (ricostruzione completa a quadratura con mapping DoF corretto)?
