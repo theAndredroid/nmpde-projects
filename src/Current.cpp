@@ -414,7 +414,7 @@ void Current::compute_ionic_currents(){
               //on the sideof the domain
               Point<dim> q_point = fe_values.quadrature_point(q);
               if(q_point[0] <= 1.5 && q_point[1] <= 1.5 && q_point[2] <= 1.5 && time <= 2.0){
-                cell_rhs[i] += 50.0 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
+                cell_rhs[i] += 0.416 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
               }
              }
          }
