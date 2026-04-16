@@ -53,7 +53,7 @@ double w_inf_star = 0.5;    // valore di w_inf quando u > theta_o
 // --- Diffusione ---
 // D = 1.171 cm^2/s dal paper (Appendice A)
 // Qui in unità adimensionali del modello
-double D = 1.171e-4;        // adattato alle unità del problema
+double D = 0.1171;        // adattato alle unità del problema
  
 // ============================================================
 
