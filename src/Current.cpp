@@ -181,10 +181,10 @@ void Current::integrate_auxiliar_variables(){
 
 
     double denom;
-    denom = 2*tau_w1_m + (tau_w2_m - tau_w1_m)*(1+ tanh(k_s*(solution_owned[i]-u_w_m)));
+    denom = 2*tau_w1_m + (tau_w2_m - tau_w1_m)*(1+ tanh(k_w_m*(solution_owned[i]-u_w_m)));
 
     if(solution_owned[i]< theta_o)
-      w_owned[i] = w_owned_old + delta_t * (2 * (1 - solution_owned[i]) /tau_w_inf-w_owned_old) / denom;
+      w_owned[i] = w_owned_old + delta_t * (2 * (1 - solution_owned[i] /tau_w_inf - w_owned_old) )/ denom;
     else if(solution_owned[i]<theta_w)    
       w_owned[i] = w_owned_old + delta_t * (2 * (w_inf_star-w_owned_old)) / denom;
     else
@@ -217,7 +217,7 @@ void Current::compute_ionic_currents(){
       J_so_owned[i] = 2/(2*tau_so1 + (tau_so2-tau_so1)*( 1 + tanh(k_so*(solution_owned[i] - u_so))));
     
     if(solution_owned[i]>= theta_w)
-      J_si_owned[i] = -w_owned[i]*s_owned[i] / tau_s1;
+      J_si_owned[i] = -w_owned[i]*s_owned[i] / tau_si;
     else
       J_si_owned[i] = 0.0; 
 
@@ -414,7 +414,7 @@ void Current::compute_ionic_currents(){
               //on the sideof the domain
               Point<dim> q_point = fe_values.quadrature_point(q);
               if(q_point[0] <= 1.5 && q_point[1] <= 1.5 && q_point[2] <= 1.5 && time <= 2.0){
-                cell_rhs[i] += 50000 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
+                cell_rhs[i] += 50000.0 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
               }
              }
          }
