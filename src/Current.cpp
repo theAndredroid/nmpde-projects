@@ -181,12 +181,12 @@ void Current::integrate_auxiliar_variables(){
 
 
     double denom;
-    denom = 2*tau_w1_m + (tau_w2_m - tau_w1_m)*(1+ tanh(k_w_m*(solution_owned[i]-u_w_m)));
+    denom = tau_w1_m + 0.5*(tau_w2_m - tau_w1_m)*(1+ tanh(k_w_m*(solution_owned[i]-u_w_m)));
 
     if(solution_owned[i]< theta_o)
-      w_owned[i] = w_owned_old + delta_t * (2 * (1 - solution_owned[i] /tau_w_inf - w_owned_old) )/ denom;
+      w_owned[i] = w_owned_old + delta_t * (1 - solution_owned[i] /tau_w_inf - w_owned_old)/ denom;
     else if(solution_owned[i]<theta_w)    
-      w_owned[i] = w_owned_old + delta_t * (2 * (w_inf_star-w_owned_old)) / denom;
+      w_owned[i] = w_owned_old + delta_t *  (w_inf_star-w_owned_old) / denom;
     else
       w_owned[i] = w_owned_old + delta_t * (-w_owned_old/tau_w_p);
 
