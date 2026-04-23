@@ -53,7 +53,7 @@ double w_inf_star = 0.5;    // valore di w_inf quando u > theta_o
 // --- Diffusione ---
 // D = 1.171 cm^2/s dal paper (Appendice A)
 // Qui in unità adimensionali del modello
-double D = 0.1171;        // adattato alle unità del problema
+double D = 1.171e-4;        // adattato alle unità del problema
  
 // ============================================================
 
@@ -414,7 +414,7 @@ void Current::compute_ionic_currents(){
               //on the sideof the domain
               Point<dim> q_point = fe_values.quadrature_point(q);
               if(q_point[0] <= 1.5 && q_point[1] <= 1.5 && q_point[2] <= 1.5 && time <= 2.0){
-                cell_rhs[i] += 0.416 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
+                cell_rhs[i] += 50.0 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
               }
              }
          }
