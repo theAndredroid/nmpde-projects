@@ -82,9 +82,14 @@ protected:
 
   void compute_ionic_currents();
 
+  void activation_time();
+
   // Output.
   void
   output() const;
+
+  void
+  output_activation_time() const;
 
   // Name of the mesh.
   const std::string mesh_file_name;
@@ -139,6 +144,9 @@ protected:
 
   // System solution, with ghost elements.
   TrilinosWrappers::MPI::Vector solution;
+
+  //
+  TrilinosWrappers::MPI::Vector Time;
 
   // Currents, without ghost elements.
   TrilinosWrappers::MPI::Vector J_fi_owned;

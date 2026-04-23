@@ -53,7 +53,7 @@ double w_inf_star = 0.94;    // valore di w_inf quando u > theta_o
 // --- Diffusione ---
 // D = 1.171 cm^2/s dal paper (Appendice A)
 // Qui in unità adimensionali del modello
-double D = 1.171e-4;        // adattato alle unità del problema
+double D = 0.1171;        // adattato alle unità del problema
  
 // ============================================================
 
@@ -144,6 +144,8 @@ Current::setup()
 
     solution_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
     solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+
+    Time.reinit(locally_owned_dofs, MPI_COMM_WORLD);
 
     v_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
     w_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
@@ -414,7 +416,7 @@ void Current::compute_ionic_currents(){
               //on the sideof the domain
               Point<dim> q_point = fe_values.quadrature_point(q);
               if(q_point[0] <= 1.5 && q_point[1] <= 1.5 && q_point[2] <= 1.5 && time <= 2.0){
-                cell_rhs[i] += 50.0 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
+                cell_rhs[i] += 0.416 * fe_values.shape_value(i,q)* fe_values.JxW(q); // microA/cm^3
               }
              }
          }
@@ -480,6 +482,46 @@ Current::output() const
                                       MPI_COMM_WORLD);
 }
 
+
+void
+Current::activation_time()
+{  
+  for (auto i: Time.locally_owned_elements())
+    if (solution[i] > 84/85.7 && std::isnan(Time[i]))
+      {
+        Time[i] = time;
+      }
+}
+
+void
+Current::output_activation_time() const
+{
+  DataOut<dim> data_out;
+
+  data_out.add_data_vector(dof_handler, Time, "Activation Time");
+
+
+
+  // Add vector for parallel partition.
+  std::vector<unsigned int> partition_int(mesh.n_active_cells());
+  GridTools::get_subdomain_association(mesh, partition_int);
+  const Vector<double> partitioning(partition_int.begin(), partition_int.end());
+  data_out.add_data_vector(partitioning, "partitioning");
+
+  data_out.build_patches();
+
+  const std::filesystem::path mesh_path(mesh_file_name);
+  const std::string output_file_name = "output_ActivationTime-" + mesh_path.stem().string();
+
+  data_out.write_vtu_with_pvtu_record(/* folder = */ "./",
+                                      /* basename = */ output_file_name,
+                                      /* index = */ 0,
+                                      MPI_COMM_WORLD);
+}
+
+
+
+
 void
 Current::run()
 {
@@ -489,6 +531,10 @@ Current::run()
 
     VectorTools::interpolate(dof_handler, Functions::ZeroFunction<dim>(), solution_owned);
     solution = solution_owned;
+      
+   
+    for (auto i : Time.locally_owned_elements())
+      Time[i] = NAN;
 
     // -------------------------------------------------------
     // Iniziliaze the auxilial values to initial conditions.
@@ -533,6 +579,10 @@ Current::run()
       // solution vector.
       solution = solution_owned;
 
+      activation_time();
+
       output();
     }
+  output_activation_time();
+
 }
