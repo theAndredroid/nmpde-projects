@@ -54,6 +54,9 @@ double w_inf_star = 0.94;    // valore di w_inf quando u > theta_o
 // D = 1.171 cm^2/s dal paper (Appendice A)
 // Qui in unità adimensionali del modello
 double D = 0.1171;        // adattato alle unità del problema
+
+// per modello anisotropico
+Tensor<2, 3> diffusion_tensor;
  
 // ============================================================
 
@@ -91,6 +94,36 @@ Current::setup()
   }
 
   pcout << "-----------------------------------------------" << std::endl;
+
+  // Initialize anisotropic diffusion tensor from monodomain conductivities.
+  {
+    const double beta_mm = 140.0; // surface-to-volume ratio in mm^-1
+    const double Cm = 0.01e-6;    // membrane capacitance in F/mm^2 (0.01 μF/mm^2)
+
+    const double sigma_i_long = 0.17;  // intracellular longitudinal conductivity S/m
+    const double sigma_e_long = 0.62;  // extracellular longitudinal conductivity S/m
+    const double sigma_i_trans = 0.019; // intracellular transverse conductivity S/m
+    const double sigma_e_trans = 0.24;  // extracellular transverse conductivity S/m
+
+    const double sigma_long = sigma_i_long * sigma_e_long /
+                              (sigma_i_long + sigma_e_long);
+    const double sigma_trans = sigma_i_trans * sigma_e_trans /
+                               (sigma_i_trans + sigma_e_trans);
+
+    const double sigma_long_mm = sigma_long * 1e-3; // S/mm
+    const double sigma_trans_mm = sigma_trans * 1e-3; // S/mm
+
+    const double D_long = sigma_long_mm / (Cm * beta_mm) / 1000.0;   // mm^2/ms
+    const double D_trans = sigma_trans_mm / (Cm * beta_mm) / 1000.0;  // mm^2/ms
+
+    diffusion_tensor.clear();
+    diffusion_tensor[0][0] = D_long;
+    diffusion_tensor[1][1] = D_trans;
+    diffusion_tensor[2][2] = D_trans;
+
+    pcout << "  Diffusion tensor initialized: D_long = " << D_long
+          << ", D_trans = " << D_trans << std::endl;
+  }
 
   // Initialize the finite element space.
   {
@@ -387,9 +420,9 @@ void Current::compute_ionic_currents(){
 
                    // Diffusion.
                    cell_matrix(i, j) +=
-                     theta *   D   *                       //
-                     scalar_product(fe_values.shape_grad(i, q),   //
-                                    fe_values.shape_grad(j, q)) * //
+                     theta * scalar_product(fe_values.shape_grad(i, q),
+                                           diffusion_tensor *
+                                             fe_values.shape_grad(j, q)) *
                      fe_values.JxW(q);
 
                  }
@@ -401,9 +434,10 @@ void Current::compute_ionic_currents(){
                               fe_values.JxW(q);
 
                // Diffusion.
-               cell_rhs(i) -= (1.0 - theta) * D *                 //
-                              scalar_product(fe_values.shape_grad(i, q), //
-                                             solution_old_grads[q]) *    //
+               cell_rhs(i) -= (1.0 - theta) *
+                              scalar_product(fe_values.shape_grad(i, q),
+                                             diffusion_tensor *
+                                               solution_old_grads[q]) *
                               fe_values.JxW(q);
 
                // ionic currents
