@@ -10,9 +10,9 @@ main(int argc, char *argv[])
 
   Current problem(/*mesh_filename = */ "mesh/mesh-square.msh",
                /* degree = */ 1,
-               /* T = */ 10.0,
+               /* T = */ 60000.0,
                /* theta = */ 0.5, //crank-Nicolson
-               /* delta_t = */ 0.05);
+               /* delta_t = */ 0.005);
 
   problem.run();
 

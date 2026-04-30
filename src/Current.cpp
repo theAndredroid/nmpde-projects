@@ -520,11 +520,16 @@ Current::output() const
 void
 Current::activation_time()
 {  
+  has_non_activated_cells = false;
   for (auto i: Time.locally_owned_elements())
-    if (solution[i] > 84/85.7 && std::isnan(Time[i]))
-      {
+    if (std::isnan(Time[i])){
+      if (solution[i] > 84/85.7)
         Time[i] = time;
-      }
+      else
+        has_non_activated_cells = true;
+    }
+  
+  MPI_Allreduce(MPI_IN_PLACE, &has_non_activated_cells, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
 }
 
 void
@@ -588,13 +593,13 @@ Current::run()
     timestep_number = 0;
 
     // Output initial condition.
-    output();
+//    output();
   }
 
   pcout << "===============================================" << std::endl;
 
   // Time-stepping loop.
-  while (time < T - 0.5 * delta_t)
+  while (has_non_activated_cells && time < T - 0.5 * delta_t)
     {
       time += delta_t;
       ++timestep_number;
@@ -615,7 +620,7 @@ Current::run()
 
       activation_time();
 
-      output();
+//      output();
     }
   output_activation_time();
 

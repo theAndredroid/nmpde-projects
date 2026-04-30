@@ -109,6 +109,8 @@ protected:
   // Current time in ms.
   double time = 0.0;
 
+  bool has_non_activated_cells = true;
+
   // Current timestep number.
   unsigned int timestep_number = 0;
 
