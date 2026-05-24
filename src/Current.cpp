@@ -1,64 +1,72 @@
 #include "Current.hpp"
+#include <fstream>
+#include <string>
+#include <cstdio>
 
-// --- Valori limite del voltaggio ---
-double u_o        = 0.0;    // voltaggio a riposo (adimensionale)
-double u_u        = 1.55;   // voltaggio massimo upstroke
+const char* model_file = "models/models.cvs";
 
-// --- Soglie per le funzioni di Heaviside ---
-double theta_v    = 0.3;    // soglia per J_fi e gate v
-double theta_w    = 0.13;   // soglia per J_so, J_si, gate w
-double theta_v_m  = 0.006;    // soglia per tau_v- (quale ramo)
-double theta_o    = 0.006;  // soglia per tau_o e w_inf
+void Current::set_model(const std::string& model){
+  std::string current_model;
+  const char* csv_keys[]{"model","u_o","u_u","theta_v","theta_w","theta_v_m","theta_o","tau_v1m","tau_v2m","tau_v_p","tau_w1_m","tau_w2_m","k_w_m","u_w_m","tau_w_p","tau_fi","tau_o1","tau_o2","tau_so1","tau_so2","k_so","u_so","tau_s1","tau_s2","k_s","u_s","tau_si","tau_w_inf","w_inf_star"};
+  const void* parameters_list[]{&current_model,&u_o,&u_u,&theta_v,&theta_w,&theta_v_m,&theta_o,&tau_v1m,&tau_v2m,&tau_v_p,&tau_w1_m,&tau_w2_m,&k_w_m,&u_w_m,&tau_w_p,&tau_fi,&tau_o1,&tau_o2,&tau_so1,&tau_so2,&k_so,&u_so,&tau_s1,&tau_s2,&k_s,&u_s,&tau_si,&tau_w_inf,&w_inf_star};
+  constexpr size_t num_parameters = sizeof(csv_keys) / sizeof(char*);
+  // std::unordered_map<std::string, size_t> parameter_indices;
 
-// --- Parametri per tau_v- (costante di tempo v in chiusura) ---
-double tau_v1m    = 60.0;   // tau_v - quando u < theta_vm
-double tau_v2m    = 1150; // tau_v- quando u > theta_vm
+  // for (int i = 0; i < sizeof(csv_keys) / sizeof(char*); ++i)
+  //   parameter_indices.insert({csv_keys[i], -1});
+  
+  std::ifstream model_file("models/models.csv");
+  std::string line;
+  std::string cell;
+  std::istringstream line_stream;
+  if (std::getline(model_file, line)){
+    line_stream.clear();
+    line_stream.str(line);
+    
+    for (size_t i = 0; i < num_parameters; ++i){
+      line_stream >> std::ws;
+      if(std::getline(line_stream, cell, ',')){
+        {
+          size_t end = cell.find_first_of(" \t");
+          if (end < cell.size())
+            cell.erase(end);
+        }
+        if(cell.compare(csv_keys[i]) != 0){
+          std::cerr << "Unexpected key " << cell << std::endl;
+          std::abort();
+        }
+      }
+    }
+  }
 
-// --- Parametri per tau_v+ (costante di tempo v in apertura) ---
-double tau_v_p    = 1.4506;
+  while (model.compare(current_model) != 0 && std::getline(model_file, line)){
+    line_stream.clear();
+    line_stream.str(line);
+    line_stream >> std::ws;
+    std::getline(line_stream, current_model, ',');
+    {
+      size_t end = current_model.find_first_of(" \t");
+      if (end < current_model.size())
+        current_model.erase(end);
+    }
+    if (model.compare(current_model) == 0){
+      for(size_t i = 1; i < num_parameters; ++i){
+      std::getline(line_stream, cell, ',');
+        *((double*) parameters_list[i]) = std::atof(cell.c_str());
+        // if (!line_stream.good()){
+        //   pcout << "Read leads to an error" << std::endl;
+        //   abort();
+        // }
+      }
+    }
+  }
 
-// --- Parametri per tau_w- (costante di tempo w in chiusura) ---
-double tau_w1_m   = 60.0;   // valore minimo di tau_w-
-double tau_w2_m   = 15.0;    // valore massimo di tau_w-
-double k_w_m      = 65.0;  // slope della sigmoide per tau_w-
-double u_w_m      = 0.03;  // punto di mezzo della sigmoide
+  if (model.compare(current_model) != 0){
+    std::cerr << "Model " << model << " not found" << std::endl;
+    abort();
+  }
 
-// --- Parametri per tau_w+ (costante di tempo w in apertura) ---
-double tau_w_p    = 200.0;
-
-// --- Parametri per J_fi (fast inward - sodio) ---
-double tau_fi     = 0.11;
-
-// --- Parametri per J_so (slow outward - potassio) ---
-double tau_o1     = 400.0;  // tau_o quando u < theta_o
-double tau_o2     = 6.0;    // tau_o quando u > theta_o
-double tau_so1    = 30.0181;   // tau_so minimo
-double tau_so2    = 0.9957;    // tau_so massimo
-double k_so       = 2.0458;    // slope della sigmoide per tau_so
-double u_so       = 0.65;    // punto di mezzo della sigmoide
-
-// --- Parametri per s (quarta variabile, morfologia AP) ---
-double tau_s1     = 2.7342; // tau_s quando u < theta_w
-double tau_s2     = 16.0;    // tau_s quando u > theta_w
-double k_s        = 2.0994; // slope della tanh per s_inf
-double u_s        = 0.9087; // punto di mezzo della tanh
-
-// --- Parametri per J_si (slow inward - calcio) ---
-double tau_si     = 1.8875;
-
-// --- Parametri per w_inf ---
-double tau_w_inf  = 0.07;   // usato nel calcolo di w_inf
-double w_inf_star = 0.94;    // valore di w_inf quando u > theta_o
-
-// --- Diffusione ---
-// D = 1.171 cm^2/s dal paper (Appendice A)
-// Qui in unità adimensionali del modello
-double D = 0.1171;        // adattato alle unità del problema
-
-// per modello anisotropico
-Tensor<2, 3> diffusion_tensor;
- 
-// ============================================================
+}
 
 void
 Current::setup()

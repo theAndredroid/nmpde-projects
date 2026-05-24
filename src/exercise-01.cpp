@@ -1,18 +1,22 @@
 #include "Current.hpp"
+#include "args.hpp"
 
 // Main function.
-int
-main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
   // constexpr unsigned int dim = Current::dim;
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
+  Args args(argc, argv);
+  
+  std::cout << args.get_mesh_filename() << std::endl;
 
-  Current problem(/*mesh_filename = */ "mesh/mesh-square.msh",
+  Current problem(/*mesh_filename = */ args.get_mesh_filename(),
                /* degree = */ 1,
-               /* T = */ 60000.0,
-               /* theta = */ 0.5, //crank-Nicolson
-               /* delta_t = */ 0.005);
+               /* T = */ args.get_max_time(),
+               /* theta = */ args.get_theta(),
+               /* delta_t = */ args.get_delta_t());
+  
+  problem.set_model(args.get_model());
 
   problem.run();
 
