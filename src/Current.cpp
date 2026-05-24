@@ -206,6 +206,7 @@ Current::setup()
   }
 
   {
+   pcout << "  Assembly system matrix" << std::endl;
 
    // Number of local DoFs for each element.
    const unsigned int dofs_per_cell = fe->dofs_per_cell;
@@ -263,7 +264,8 @@ Current::setup()
        system_matrix.add(dof_indices, cell_matrix);
      }
 
-   system_matrix.compress(VectorOperation::add);    
+   system_matrix.compress(VectorOperation::add);
+   preconditioner.initialize(system_matrix, TrilinosWrappers::PreconditionILU::AdditionalData(3));
   }
 }
 
@@ -517,18 +519,14 @@ void Current::compute_ionic_currents(){
 void
 Current::solve_linear_system()
 {
-  TrilinosWrappers::PreconditionSSOR preconditioner;
-  preconditioner.initialize(
-    system_matrix, TrilinosWrappers::PreconditionSSOR::AdditionalData(1.0));
-
   ReductionControl solver_control(/* maxiter = */ 10000,
                                   /* tolerance = */ 1.0e-16,
                                   /* reduce = */ 1.0e-6);
  
-  SolverGMRES<TrilinosWrappers::MPI::Vector> solver(solver_control);
+  SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
 
   solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-  pcout << solver_control.last_step() << " GMRES iterations" << std::endl;
+  pcout << solver_control.last_step() << " CG iterations" << std::endl;
 
 }
 
