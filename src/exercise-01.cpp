@@ -8,9 +8,10 @@ int main(int argc, char *argv[]){
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
   Args args(argc, argv);
   
-  std::cout << args.get_mesh_filename() << std::endl;
+  std::cout << args << std::endl;
 
   Current problem(/*mesh_filename = */ args.get_mesh_filename(),
+               /* output_file_name = */ args.get_output_file_name(),
                /* degree = */ 1,
                /* T = */ args.get_max_time(),
                /* theta = */ args.get_theta(),

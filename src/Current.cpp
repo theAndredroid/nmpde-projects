@@ -585,8 +585,6 @@ Current::output_activation_time() const
 
   data_out.add_data_vector(dof_handler, Time, "Activation Time");
 
-
-
   // Add vector for parallel partition.
   std::vector<unsigned int> partition_int(mesh.n_active_cells());
   GridTools::get_subdomain_association(mesh, partition_int);
@@ -594,9 +592,6 @@ Current::output_activation_time() const
   data_out.add_data_vector(partitioning, "partitioning");
 
   data_out.build_patches();
-
-  const std::filesystem::path mesh_path(mesh_file_name);
-  const std::string output_file_name = "output_ActivationTime-" + mesh_path.stem().string();
 
   data_out.write_vtu_with_pvtu_record(/* folder = */ "./",
                                       /* basename = */ output_file_name,

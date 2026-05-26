@@ -46,11 +46,13 @@ public:
 
   // Constructor.
   Current(const std::string                            &mesh_file_name_,
+       const std::string                               &output_file_name_,
        const unsigned int                              &r_,
        const double                                    &T_,
        const double                                    &theta_,
        const double                                    &delta_t_)
     : mesh_file_name(mesh_file_name_)
+    , output_file_name(output_file_name_)
     , r(r_)
     , T(T_)
     , theta(theta_)
@@ -95,6 +97,7 @@ protected:
 
   // Name of the mesh.
   const std::string mesh_file_name;
+  const std::string output_file_name;
 
   // Polynomial degree.
   const unsigned int r;
