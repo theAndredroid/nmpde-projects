@@ -18,8 +18,6 @@
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/tria.h>
 
-#include <deal.II/lac/solver_cg.h>
-// #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
 #include <deal.II/lac/vector.h>
@@ -32,6 +30,8 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <memory>
+#include "Solver.hpp"
 
 using namespace dealii;
 
@@ -48,6 +48,7 @@ public:
   Current(const std::string                            &mesh_file_name_,
        const std::string                               &output_file_name_,
        const unsigned int                              &r_,
+       SolverAdapter                                   *solver_,
        const double                                    &T_,
        const double                                    &theta_,
        const double                                    &delta_t_)
@@ -60,6 +61,7 @@ public:
     , mpi_size(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD))
     , mpi_rank(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD))
     , mesh(MPI_COMM_WORLD)
+    , solver(solver_)
     , pcout(std::cout, mpi_rank == 0)
   {}
 
@@ -143,8 +145,8 @@ protected:
   // System matrix.
   TrilinosWrappers::SparseMatrix system_matrix;
 
-  // Solver preconditioner.
-  TrilinosWrappers::PreconditionILU preconditioner;
+  //Sistem solver.
+  std::unique_ptr<SolverAdapter> solver;
 
   // System right-hand side.
   TrilinosWrappers::MPI::Vector system_rhs;

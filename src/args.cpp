@@ -6,16 +6,23 @@
 #include <deal.II/base/mpi.h>
 
 Args::Args(int argc, char** argv)
-  :command(*argv)
+  : command(*argv)
+  , solver(SolverAdapter::get_new(DEFAULT_SOLVER))
 {
+  if (solver) solver->add_extraoptions(options);
+
   char** end = argv + argc;
   ++argv;
   while (argv < end){
     auto option = options.find(*argv);
     if (option != options.end())
-      argv = option->second(*this, ++argv, end);
-    else
+      argv = (option->second)(++argv, end);
+    else{
+      const unsigned int mpi_rank = dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+      if (mpi_rank == 0)
+        std::cerr << "Invalid option: " << *argv << std::endl;
       this->print_help_and_exit(EXIT_FAILURE);
+    }
   }
 }
 
@@ -51,6 +58,7 @@ void Args::print_help_and_exit(int exit_status)
       os << "                        Available models: " << available_models << "\n";
     }
     os << "  -o, --output <file>   Set the output file name\n"
+      << "  -s, --solver <name>   Set the solver type (cg, gmres, direct) (default: " << (solver ? solver->get_name() : "none") << ")\n"
       << "  --delta_t <val>       Set delta_t in ms (default: " << delta_t << ")\n"
       << "  --max_time <val>      Set max_time in ms (default: " << max_time << ")\n"
       << "  --mesh_size <val>     Set mesh_size in mm (default: " << mesh_size << ")\n"
@@ -64,17 +72,17 @@ void Args::print_help_and_exit(int exit_status)
   std::exit(exit_status);
 }
 
-char **Args::print_help(Args & _this, char **begin, char ** /*end*/)
+char **Args::print_help(char **begin, char ** /*end*/)
 {
-  _this.print_help_and_exit(EXIT_SUCCESS);
+  print_help_and_exit(EXIT_SUCCESS);
   return begin;
 }
 
-char** Args::set_model(Args& _this, char** begin, char** end){
+char** Args::set_model(char** begin, char** end){
   if (begin != end)
-    _this.model = std::string(*begin);
+    model = std::string(*begin);
   else
-    _this.print_help_and_exit(EXIT_FAILURE);
+    print_help_and_exit(EXIT_FAILURE);
   return ++begin;
 }
 
@@ -82,11 +90,25 @@ const std::string& Args::get_model() const{
   return model;
 }
 
-char** Args::set_output_file_name(Args &_this, char **begin, char **end){
+char** Args::set_output_file_name(char **begin, char **end){
   if (begin != end)
-    _this.output_file_name = std::string(*begin);
+    output_file_name = std::string(*begin);
   else
-    _this.print_help_and_exit(EXIT_FAILURE);
+    print_help_and_exit(EXIT_FAILURE);
+  return ++begin;
+}
+
+char **Args::set_solver_type(char **begin, char **end)
+{
+  if (begin == end)
+    print_help_and_exit(EXIT_FAILURE);
+
+  SolverAdapter* new_solver = SolverAdapter::get_new(*begin);
+  if (!new_solver)
+    print_help_and_exit(EXIT_FAILURE);
+  
+  new_solver->add_extraoptions(options);
+  this->solver.reset(new_solver);
   return ++begin;
 }
 
@@ -94,11 +116,16 @@ std::string Args::get_output_file_name() const{
   return output_file_name;
 }
 
-char** Args::set_delta_t(Args &_this, char **begin, char **end){
+SolverAdapter* Args::get_solver()
+{
+  return solver.release();
+}
+
+char** Args::set_delta_t(char **begin, char **end){
   if (begin != end)
-    _this.delta_t = std::atof(*begin);
+    delta_t = std::atof(*begin);
   else
-    _this.print_help_and_exit(EXIT_FAILURE);
+    print_help_and_exit(EXIT_FAILURE);
   return ++begin;
 }
 
@@ -106,11 +133,11 @@ double Args::get_delta_t() const{
   return delta_t;
 }
 
-char** Args::set_max_time(Args &_this, char **begin, char **end){
+char** Args::set_max_time(char **begin, char **end){
   if (begin != end)
-    _this.max_time = std::atof(*begin);
+    max_time = std::atof(*begin);
   else
-    _this.print_help_and_exit(EXIT_FAILURE);
+    print_help_and_exit(EXIT_FAILURE);
   return ++begin;
 }
 
@@ -118,11 +145,11 @@ double Args::get_max_time() const{
   return max_time;
 }
 
-char** Args::set_mesh_size(Args &_this, char **begin, char **end){
+char** Args::set_mesh_size(char **begin, char **end){
   if (begin != end)
-    _this.mesh_size = std::atof(*begin);
+    mesh_size = std::atof(*begin);
   else
-    _this.print_help_and_exit(EXIT_FAILURE);
+    print_help_and_exit(EXIT_FAILURE);
   return ++begin;
 }
 
@@ -136,38 +163,45 @@ std::string Args::get_mesh_filename() const{
   
   std::string mesh_file_name = DEFAULT_BASE_MESH_FILE + "_h" + (std::ostringstream() << std::fixed << mesh_size).str() + ".msh";
 
-  std::system((std::ostringstream() <<
-          "( test ! -f " << mesh_file_name << " || " <<
-          "test " << mesh_file_name << " -ot " << DEFAULT_BASE_MESH_FILE + ".geo" << " ) && " << 
-          MESH_COMPILING_COMMAND << "-setnumber h " << mesh_size << " -o " << mesh_file_name
-        ).str().c_str());
+  const unsigned int mpi_rank = dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+  if (mpi_rank == 0){
+    if (std::system((std::ostringstream() <<
+            "(test ! -f " << mesh_file_name << " || " <<
+            "test " << mesh_file_name << " -ot " << DEFAULT_BASE_MESH_FILE + ".geo" << " ) && " << 
+            MESH_COMPILING_COMMAND << "-setnumber h " << mesh_size << " -o " << mesh_file_name
+          ).str().c_str())){
+      MPI_Finalize();
+      std::abort();
+    }
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
 
   return mesh_file_name;
 }
 
-char** Args::set_theta(Args &_this, char **begin, char **end){
+char** Args::set_theta(char **begin, char **end){
   if (begin != end)
-    _this.theta = std::atof(*begin);
+    theta = std::atof(*begin);
   else
-    _this.print_help_and_exit(EXIT_FAILURE);
+    print_help_and_exit(EXIT_FAILURE);
   return ++begin;
 }
 
-char **Args::set_implicit_euler(Args &_this, char **begin, char **end)
+char **Args::set_implicit_euler(char **begin, char **end)
 {
-  _this.theta = 1.0;
+  theta = 1.0;
   return begin;
 }
 
-char **Args::set_explicit_euler(Args &_this, char **begin, char **end)
+char **Args::set_explicit_euler(char **begin, char **end)
 {
-  _this.theta = 0.0;
+  theta = 0.0;
   return begin;
 }
 
-char **Args::set_crank_nicolson(Args &_this, char **begin, char **end)
+char **Args::set_crank_nicolson(char **begin, char **end)
 {
-  _this.theta = 0.5;
+  theta = 0.5;
   return begin;
 }
 
@@ -178,10 +212,16 @@ double Args::get_theta() const{
 std::ostream& operator<<(std::ostream& os, const Args& args){
   os << "Configuration:" << std::endl
      << "  Model:       " << args.model << std::endl
-     << "  Output file: " << args.output_file_name << std::endl
-     << "  Delta t:     " << args.delta_t << " ms" << std::endl
+     << "  Output file: " << args.output_file_name << std::endl;
+  if (args.solver) {
+    os << "  Solver:      " << *args.solver << std::endl;
+  } else {
+    os << "  Solver:      none" << std::endl;
+  }
+  os << "  Delta t:     " << args.delta_t << " ms" << std::endl
      << "  Max time:    " << args.max_time << " ms" << std::endl
      << "  Mesh size:   " << args.mesh_size << " mm" << std::endl
-     << "  Theta:       " << args.theta << std::endl;
+     << "  Theta:       " << args.theta << std::endl
+     << "  MPI Procs:   " << dealii::Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) << std::endl;
   return os;
 }

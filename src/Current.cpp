@@ -265,7 +265,7 @@ Current::setup()
      }
 
    system_matrix.compress(VectorOperation::add);
-   preconditioner.initialize(system_matrix, TrilinosWrappers::PreconditionILU::AdditionalData(3));
+   solver->initialize(system_matrix);
   }
 }
 
@@ -519,15 +519,8 @@ void Current::compute_ionic_currents(){
 void
 Current::solve_linear_system()
 {
-  ReductionControl solver_control(/* maxiter = */ 10000,
-                                  /* tolerance = */ 1.0e-16,
-                                  /* reduce = */ 1.0e-6);
- 
-  SolverCG<TrilinosWrappers::MPI::Vector> solver(solver_control);
-
-  solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-  pcout << solver_control.last_step() << " CG iterations" << std::endl;
-
+  solver->solve(solution_owned, system_rhs);
+  pcout << solver->get_iterations() << " " << solver->get_name() << " iterations" << std::endl;
 }
 
 void
@@ -584,6 +577,8 @@ Current::output_activation_time() const
   DataOut<dim> data_out;
 
   data_out.add_data_vector(dof_handler, Time, "Activation Time");
+
+  
 
   // Add vector for parallel partition.
   std::vector<unsigned int> partition_int(mesh.n_active_cells());

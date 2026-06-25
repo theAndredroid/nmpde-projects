@@ -34,7 +34,6 @@ add_custom_target(mesh_file ALL
 add_custom_target(models_file ALL
                   DEPENDS models/models.csv)
 
-
 string(JOIN " " MESH_COMPILING_COMMAND_STR ${MESH_COMPILING_COMMAND} "")
 add_compile_definitions(MESH_COMPILING_COMMAND="${MESH_COMPILING_COMMAND_STR}"s)
 add_compile_definitions(DEFAULT_BASE_MESH_FILE="${DEFAULT_BASE_MESH_FILE}"s)
@@ -44,6 +43,13 @@ add_compile_definitions(DEFAULT_DELTA_T=${DEFAULT_DELTA_T})
 add_compile_definitions(DEFAULT_MAX_TIME=${DEFAULT_MAX_TIME})
 add_compile_definitions(DEFAULT_THETA=${DEFAULT_THETA})
 add_compile_definitions(DEFAULT_OUTPUT_FILE="${DEFAULT_OUTPUT_FILE}"s)
+add_compile_definitions(DEFAULT_SOLVER="${DEFAULT_SOLVER}"s)
+add_compile_definitions(DEFAULT_MAX_ITER=${DEFAULT_MAX_ITER})
+add_compile_definitions(DEFAULT_TOLERANCE=${DEFAULT_TOLERANCE})
+add_compile_definitions(DEFAULT_REDUCE_FACTOR=${DEFAULT_REDUCE_FACTOR})
+add_compile_definitions(DEFAULT_PRECONDITIONER="${DEFAULT_PRECONDITIONER}"s)
+add_compile_definitions(DEFAULT_ILU_FILL_IN=${DEFAULT_ILU_FILL_IN})
+add_compile_definitions(DEFAULT_SSOR_OMEGA=${DEFAULT_SSOR_OMEGA})
 
-add_executable(exercise-01 src/exercise-01.cpp src/args.cpp src/Current.cpp)
+add_executable(exercise-01 src/exercise-01.cpp src/args.cpp src/Current.cpp src/Solver.cpp src/Precondition.cpp)
 deal_ii_setup_target(exercise-01)

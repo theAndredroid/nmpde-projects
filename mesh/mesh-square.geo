@@ -2,7 +2,7 @@ a = 20;
 b = 7;
 c = 3;
 
-h = 0.1; // Mesh size.
+// h = 0.1; // Mesh size.
 
 // Create one point in the origin.
 Point(1) = {0, 0, 0, h};
