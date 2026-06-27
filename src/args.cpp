@@ -169,7 +169,7 @@ std::string Args::get_mesh_filename() const{
             "(test ! -f " << mesh_file_name << " || " <<
             "test " << mesh_file_name << " -ot " << DEFAULT_BASE_MESH_FILE + ".geo" << " ) && " << 
             MESH_COMPILING_COMMAND << "-setnumber h " << mesh_size << " -o " << mesh_file_name
-          ).str().c_str())){
+          ).str().c_str()) < 0){
       MPI_Finalize();
       std::abort();
     }
@@ -187,19 +187,19 @@ char** Args::set_theta(char **begin, char **end){
   return ++begin;
 }
 
-char **Args::set_implicit_euler(char **begin, char **end)
+char **Args::set_implicit_euler(char **begin, char **/*end*/)
 {
   theta = 1.0;
   return begin;
 }
 
-char **Args::set_explicit_euler(char **begin, char **end)
+char **Args::set_explicit_euler(char **begin, char **/*end*/)
 {
   theta = 0.0;
   return begin;
 }
 
-char **Args::set_crank_nicolson(char **begin, char **end)
+char **Args::set_crank_nicolson(char **begin, char **/*end*/)
 {
   theta = 0.5;
   return begin;

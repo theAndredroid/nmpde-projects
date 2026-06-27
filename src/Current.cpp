@@ -578,7 +578,8 @@ Current::output_activation_time() const
 
   data_out.add_data_vector(dof_handler, Time, "Activation Time");
 
-  
+  std::filesystem::path output_file_path(output_file_name);
+  std::filesystem::current_path(output_file_path.parent_path());
 
   // Add vector for parallel partition.
   std::vector<unsigned int> partition_int(mesh.n_active_cells());
@@ -589,7 +590,7 @@ Current::output_activation_time() const
   data_out.build_patches();
 
   data_out.write_vtu_with_pvtu_record(/* folder = */ "./",
-                                      /* basename = */ output_file_name,
+                                      /* basename = */ output_file_path.filename().string(),
                                       /* index = */ 0,
                                       MPI_COMM_WORLD);
 }
