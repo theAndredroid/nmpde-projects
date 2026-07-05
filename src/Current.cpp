@@ -259,40 +259,39 @@ Current::setup()
 }
 
 void Current::integrate_auxiliar_variables(){
-  double v_owned_old;
-  double w_owned_old;
-  double s_owned_old;
+  double w1_old;
+  double w2_old;
+  double w3_old;
   for (auto i: v.locally_owned_elements()){
-    v_owned_old = w1[i];
-    w_owned_old = w2[i];
-    s_owned_old = w3[i];
+    w1_old = w1[i];
+    w2_old = w2[i];
+    w3_old = w3[i];
     
     if(v[i]< theta_w1_m)
-      w1[i] = v_owned_old + delta_t * (1-v_owned_old)/tau_w1_1_m;
+      w1[i] = w1_old + delta_t * (1-w1_old)/tau_w1_1_m;
     else if(v[i]<theta_w1)
-      w1[i] = v_owned_old + delta_t *(-v_owned_old/tau_w1_2_m);
+      w1[i] = w1_old + delta_t *(-w1_old/tau_w1_2_m);
     else
-      w1[i] = v_owned_old + delta_t *(-v_owned_old/tau_w1_p);
+      w1[i] = w1_old + delta_t *(-w1_old/tau_w1_p);
 
 
-    double denom;
-    denom = tau_w2_1_m + 0.5*(tau_w2_2_m - tau_w2_1_m)*(1+ tanh(k_w2_m*(v[i]-v_w2_m)));
+    {
+      double tau_w2_m
+      = tau_w2_1_m + 0.5*(tau_w2_2_m - tau_w2_1_m)*(1+ tanh(k_w2_m*(v[i]-v_w2_m)));
 
-    if(v[i]< theta_o)
-      w2[i] = w_owned_old + delta_t * (1 - v[i] /tau_w2_inf - w_owned_old)/ denom;
-    else if(v[i]<theta_w2)    
-      w2[i] = w_owned_old + delta_t *  (w2_inf_star-w_owned_old) / denom;
-    else
-      w2[i] = w_owned_old + delta_t * (-w_owned_old/tau_w2_p);
+      if(v[i]< theta_o)
+        w2[i] = w2_old + delta_t * (1 - v[i] /tau_w2_inf - w2_old)/ tau_w2_m;
+      else if(v[i]<theta_w2)    
+        w2[i] = w2_old + delta_t *  (w2_inf_star-w2_old) / tau_w2_m;
+      else
+        w2[i] = w2_old + delta_t * (-w2_old/tau_w2_p);
+    }
 
+    {
+      double tau_w3 = v[i] < theta_w2 ? tau_w3_1 : tau_w3_2;
 
-    double num;
-    num = 1 + tanh(k_w3*(v[i]-v_w3)) - 2*s_owned_old;
-  
-    if(v[i]< theta_w2)
-      w3[i] = s_owned_old + delta_t * num/(2*tau_w3_1);
-    else
-      w3[i] = s_owned_old + delta_t *num/(2*tau_w3_2);
+      w3[i] = w3_old + delta_t * (1 + tanh(k_w3*(v[i]-v_w3)) - 2*w3_old)/(2 * tau_w3);
+    }
 
   }
 }
