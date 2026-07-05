@@ -34,21 +34,8 @@ done
 
 if [ "$run_plot" = true ]; then
   SCRIPT_DIR=$(dirname $(realpath $0))
-  
-  PYTHON_BIN=""
-  if command -v pvpython &> /dev/null; then
-    PYTHON_BIN="pvpython"
-  elif command -v pvbash &> /dev/null; then
-    PYTHON_BIN="pvbash"
-  elif command -v python3 &> /dev/null; then
-    PYTHON_BIN="python3"
-  else
-    echo "Error: Neither pvpython, pvbash, nor python3 could be found in PATH."
-    exit 1
-  fi
-  
-  echo "Running model clip rendering using $PYTHON_BIN..."
-  $PYTHON_BIN "$SCRIPT_DIR/plot_model_activation.py" "$plot_dir"
+  echo "Running model clip rendering inside Apptainer..."
+  apptainer exec "$SCRIPT_DIR/../dealii_paraview.sif" pvpython "$SCRIPT_DIR/plot_model_activation.py" "$plot_dir"
   exit $?
 fi
 
@@ -84,7 +71,7 @@ if [ "$is_node" = true ]; then
   
   # Run the simulation inside the Apptainer container
   # Save the activation time output and redirect stdout/stderr inside the directory
-  mpirun apptainer exec ../../dealii.sif ./exercise-01 \
+  mpirun apptainer exec ../dealii_paraview.sif ./exercise-01 \
     -m "$model" \
     -o "${OUTPUT_DIR}/${model}_activation_time" \
     > "${OUTPUT_DIR}/${job_id}.out" \
@@ -123,15 +110,22 @@ else
   
   # Submit a separate PBS job for each model
   first_job_id=""
+  job_ids=""
   for m in "${models[@]}"; do
     if [ -z "$first_job_id" ]; then
       echo "Submitting first job for model: $m"
       first_job_id=$(qsub -N ${m} $PBS_parameters -- $SCRIPT -m "$m" --node-exec)
       first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
       echo "First Job ID is: $first_job_id"
+      job_ids="${first_job_id}"
     else
       echo "Submitting job for model: $m"
-      qsub -N ${m} $PBS_parameters -- $SCRIPT -m "$m" --node-exec --first-job-id "$first_job_id"
+      job_id=$(qsub -N ${m} $PBS_parameters -- $SCRIPT -m "$m" --node-exec --first-job-id "$first_job_id")
+      job_id=$(echo "$job_id" | tr -d '[:space:]')
+      job_ids="${job_ids}:${job_id}"
     fi
   done
+
+  echo "Submitting dependent plotting job..."
+  qsub -W depend=afterany:${job_ids} -N plot_model $PBS_parameters -- $SCRIPT --plot "build/${first_job_id}_models"
 fi

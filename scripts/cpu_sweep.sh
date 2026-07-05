@@ -6,7 +6,7 @@ PBS_parameters="-q cpu -j oe"
 
 # Handle plotting command directly
 if [ "$1" == "--plot" ]; then
-  python3 "$(dirname "$0")/plot_scaling.py" "$2"
+  apptainer exec "$(dirname "$0")/../dealii_paraview.sif" python3 "$(dirname "$0")/plot_scaling.py" "$2"
   exit $?
 fi
 
@@ -63,7 +63,7 @@ if [ "$is_node" = true ]; then
   # Execute the simulation inside the Apptainer container and measure execution time
   if [ "$num_cpus" -eq 1 ]; then
     # Run sequentially without mpirun
-    elapsed=$( { time apptainer exec ../../dealii.sif ./exercise-01 \
+    elapsed=$( { time apptainer exec ../dealii_paraview.sif ./exercise-01 \
       $config_args \
       -o /dev/null \
       > "./${OUTPUT_DIR}/${PBS_JOBID}.out" \
@@ -71,7 +71,7 @@ if [ "$is_node" = true ]; then
     2>&1 )
   else
     # Run with mpirun using the specified number of CPUs
-    elapsed=$( { time mpirun -n $num_cpus apptainer exec ../../dealii.sif ./exercise-01 \
+    elapsed=$( { time mpirun -n $num_cpus apptainer exec ../../dealii_paraview.sif ./exercise-01 \
       $config_args \
       -o /dev/null \
       > "./${OUTPUT_DIR}/${PBS_JOBID}.out" \
@@ -123,6 +123,7 @@ else
   
   # Submit a separate PBS job for each CPU configuration
   first_job_id=""
+  job_ids=""
   for num_cpus in "${cpu_configs[@]}"; do
     desc="${num_cpus}_MPI"
     qsub_cpus=$(( num_cpus / procs_for_cpu ))
@@ -136,9 +137,15 @@ else
       first_job_id=$(qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --cpus $num_cpus --desc "$desc")
       first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
       echo "First Job ID is: $first_job_id"
+      job_ids="${first_job_id}"
     else
       echo "Submitting job with $num_cpus CPUs ($desc)"
-      qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --first-job-id "$first_job_id" --cpus $num_cpus --desc "$desc"
+      job_id=$(qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --first-job-id "$first_job_id" --cpus $num_cpus --desc "$desc")
+      job_id=$(echo "$job_id" | tr -d '[:space:]')
+      job_ids="${job_ids}:${job_id}"
     fi
   done
+
+  echo "Submitting dependent plotting job..."
+  qsub -W depend=afterany:${job_ids} -N plot_cpu $PBS_parameters -l ncpus=1 -- $SCRIPT --plot "build/${first_job_id}_scalability"
 fi

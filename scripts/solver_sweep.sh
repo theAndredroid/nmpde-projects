@@ -8,7 +8,7 @@ PBS_parameters="-q cpu -l ncpus=28 -j oe"
 
 # Handle plotting command directly
 if [ "$1" == "--plot" ]; then
-  python3 "$(dirname "$0")/plot_performance.py" "$2"
+  apptainer exec "$(dirname "$0")/../dealii_paraview.sif" python3 "$(dirname "$0")/plot_performance.py" "$2"
   exit $?
 fi
 
@@ -59,7 +59,7 @@ if [ "$is_node" = true ]; then
   TIMEFORMAT="%R"
   
   # Execute the simulation inside the Apptainer container and measure execution time
-  elapsed=$( { time mpirun apptainer exec ../../dealii.sif ./exercise-01 \
+  elapsed=$( { time mpirun apptainer exec ../../dealii_paraview.sif ./exercise-01 \
     $config_args \
     -o /dev/null \
     > "./${OUTPUT_DIR}/${PBS_JOBID}.out" \
@@ -121,6 +121,7 @@ else
   
   # Submit a separate PBS job for each configuration
   first_job_id=""
+  job_ids=""
   for i in "${!configurations[@]}"; do
     config="${configurations[$i]}"
     desc="${descriptions[$i]}"
@@ -130,9 +131,15 @@ else
       first_job_id=$(qsub -N $(echo $desc | tr ' ' '_' | tr -d '()') $PBS_parameters -- $SCRIPT $config --node-exec --desc "$desc")
       first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
       echo "First Job ID is: $first_job_id"
+      job_ids="${first_job_id}"
     else
       echo "Submitting job for configuration: $config ($desc)"
-      qsub -N $(echo $desc | tr ' ' '_' | tr -d '()' ) $PBS_parameters -- $SCRIPT $config --node-exec --first-job-id "$first_job_id" --desc "$desc"
+      job_id=$(qsub -N $(echo $desc | tr ' ' '_' | tr -d '()' ) $PBS_parameters -- $SCRIPT $config --node-exec --first-job-id "$first_job_id" --desc "$desc")
+      job_id=$(echo "$job_id" | tr -d '[:space:]')
+      job_ids="${job_ids}:${job_id}"
     fi
   done
+
+  echo "Submitting dependent plotting job..."
+  qsub -W depend=afterany:${job_ids} -N plot_solver $PBS_parameters -- $SCRIPT --plot "build/${first_job_id}_performance"
 fi

@@ -48,7 +48,7 @@ if [ "$is_node" = true ]; then
   
   # Run the simulation inside the Apptainer container
   # Save the activation time output inside the method_jobid directory
-  mpirun apptainer exec ../../dealii.sif ./exercise-01 \
+  mpirun apptainer exec ../dealii_paraview.sif ./exercise-01 \
     "$method_flag" \
     -o "${OUTPUT_DIR}/activation_time"
     

@@ -43,21 +43,8 @@ done
 if [ "$run_plot" = true ]; then
   # Determine script directory
   SCRIPT_DIR=$(dirname $(realpath $0))
-  
-  PYTHON_BIN=""
-  if command -v pvpython &> /dev/null; then
-    PYTHON_BIN="pvpython"
-  elif command -v pvbash &> /dev/null; then
-    PYTHON_BIN="pvbash"
-  elif command -v python3 &> /dev/null; then
-    PYTHON_BIN="python3"
-  else
-    echo "Error: Neither pvpython, pvbash, nor python3 could be found in PATH."
-    exit 1
-  fi
-  
-  echo "Running 3D plot generation using $PYTHON_BIN..."
-  $PYTHON_BIN "$SCRIPT_DIR/plot_convergence_3d.py" "$plot_dir"
+  echo "Running 3D plot generation inside Apptainer..."
+  apptainer exec "$SCRIPT_DIR/../dealii_paraview.sif" pvpython "$SCRIPT_DIR/plot_convergence_3d.py" "$plot_dir"
   exit $?
 fi
 
@@ -95,7 +82,7 @@ if [ "$is_node" = true ]; then
   
   # Run the simulation inside the Apptainer container
   # Redirect stdout and stderr to logs inside the subdirectory
-  mpirun apptainer exec ../../dealii.sif ./exercise-01 \
+  mpirun apptainer exec ../dealii_paraview.sif ./exercise-01 \
     --mesh_size "$mesh_size" \
     --delta_t "$delta_t" \
     -o "${OUTPUT_DIR}/activation_time" \
@@ -119,6 +106,7 @@ else
   
   # Submit a separate PBS job for each combination of mesh_size and delta_t
   first_job_id=""
+  job_ids=""
   for h in "${mesh_sizes[@]}"; do
     for dt in "${delta_ts[@]}"; do
       # Substitute dots with underscores for job name safety
@@ -131,10 +119,16 @@ else
         first_job_id=$(qsub -N ${desc} $PBS_parameters -- $SCRIPT --mesh_size "$h" --delta_t "$dt" --node-exec --desc "$desc")
         first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
         echo "First Job ID is: $first_job_id"
+        job_ids="${first_job_id}"
       else
         echo "Submitting job for combination: h: ${h}, dt: ${dt}"
-        qsub -N ${desc} $PBS_parameters -- $SCRIPT --mesh_size "$h" --delta_t "$dt" --node-exec --first-job-id "$first_job_id" --desc "$desc"
+        job_id=$(qsub -N ${desc} $PBS_parameters -- $SCRIPT --mesh_size "$h" --delta_t "$dt" --node-exec --first-job-id "$first_job_id" --desc "$desc")
+        job_id=$(echo "$job_id" | tr -d '[:space:]')
+        job_ids="${job_ids}:${job_id}"
       fi
     done
   done
+
+  echo "Submitting dependent plotting job..."
+  qsub -W depend=afterany:${job_ids} -N plot_conv $PBS_parameters -- $SCRIPT --plot "build/${first_job_id}_convergence"
 fi
