@@ -88,7 +88,7 @@ protected:
 
   void compute_ionic_currents();
 
-  void activation_time();
+  void check_activation_time();
 
   // Output.
   void
@@ -152,63 +152,58 @@ protected:
   TrilinosWrappers::MPI::Vector system_rhs;
 
   // System solution, without ghost elements.
-  TrilinosWrappers::MPI::Vector solution_owned;
+  TrilinosWrappers::MPI::Vector v;
 
   // System solution, with ghost elements.
-  TrilinosWrappers::MPI::Vector solution;
+  TrilinosWrappers::MPI::Vector v_ghost;
 
   //
-  TrilinosWrappers::MPI::Vector Time;
+  TrilinosWrappers::MPI::Vector activation_time;
 
   // Currents, without ghost elements.
-  TrilinosWrappers::MPI::Vector J_fi_owned;
-  TrilinosWrappers::MPI::Vector J_so_owned;
-  TrilinosWrappers::MPI::Vector J_si_owned;
-
-  // Currents, with ghost elements.
   TrilinosWrappers::MPI::Vector J_fi;
   TrilinosWrappers::MPI::Vector J_so;
   TrilinosWrappers::MPI::Vector J_si;
 
-  // Auxiliar variables, without ghost elements.
-  TrilinosWrappers::MPI::Vector v_owned;
-  TrilinosWrappers::MPI::Vector w_owned;
-  TrilinosWrappers::MPI::Vector s_owned;
+  // Currents, with ghost elements.
+  TrilinosWrappers::MPI::Vector J_fi_ghost;
+  TrilinosWrappers::MPI::Vector J_so_ghost;
+  TrilinosWrappers::MPI::Vector J_si_ghost;
 
-  // Auxiliar variables, with ghost elements.
-  // TrilinosWrappers::MPI::Vector v;
-  // TrilinosWrappers::MPI::Vector w;
-  // TrilinosWrappers::MPI::Vector s;
+  // Auxiliar variables, without ghost elements.
+  TrilinosWrappers::MPI::Vector w1;
+  TrilinosWrappers::MPI::Vector w2;
+  TrilinosWrappers::MPI::Vector w3;
 
   // Output stream for process 0.
   ConditionalOStream pcout;
 
   
   // --- Valori limite del voltaggio ---
-  double u_o;           // voltaggio a riposo (adimensionale)
-  double u_u;           // voltaggio massimo upstroke
+  double v_o;           // voltaggio a riposo (adimensionale)
+  double v_u;           // voltaggio massimo upstroke
 
   // --- Soglie per le funzioni di Heaviside ---
-  double theta_v;       // soglia per J_fi e gate v
-  double theta_w;       // soglia per J_so, J_si, gate w
-  double theta_v_m;     // soglia per tau_v- (quale ramo)
-  double theta_o;       // soglia per tau_o e w_inf
+  double theta_w1;       // soglia per J_fi e gate w1
+  double theta_w2;       // soglia per J_so, J_si, gate w2
+  double theta_w1_m;     // soglia per tau_w1- (quale ramo)
+  double theta_o;       // soglia per tau_o e w2_inf
 
-  // --- Parametri per tau_v- (costante di tempo v in chiusura) ---
-  double tau_v1m;       // tau_v - quando u < theta_vm
-  double tau_v2m;       // tau_v- quando u > theta_vm
+  // --- Parametri per tau_w1- (costante di tempo w1 in chiusura) ---
+  double tau_w1_1_m;       // tau_w1 - quando u < theta_w1_m
+  double tau_w1_2_m;       // tau_w1 - quando u > theta_w1_m
 
-  // --- Parametri per tau_v+ (costante di tempo v in apertura) ---
-  double tau_v_p;
+  // --- Parametri per tau_w1+ (costante di tempo w1 in apertura) ---
+  double tau_w1_p;
 
-  // --- Parametri per tau_w- (costante di tempo w in chiusura) ---
-  double tau_w1_m;      // valore minimo di tau_w-
-  double tau_w2_m;      // valore massimo di tau_w-
-  double k_w_m;         // slope della sigmoide per tau_w-
-  double u_w_m;         // punto di mezzo della sigmoide
+  // --- Parametri per tau_w2- (costante di tempo w2 in chiusura) ---
+  double tau_w2_1_m;      // valore minimo di tau_w2-
+  double tau_w2_2_m;      // valore massimo di tau_w2-
+  double k_w2_m;         // slope della sigmoide per tau_w2-
+  double v_w2_m;         // punto di mezzo della sigmoide
 
-  // --- Parametri per tau_w+ (costante di tempo w in apertura) ---
-  double tau_w_p;
+  // --- Parametri per tau_w2+ (costante di tempo w2 in apertura) ---
+  double tau_w2_p;
 
   // --- Parametri per J_fi (fast inward - sodio) ---
   double tau_fi;
@@ -219,26 +214,35 @@ protected:
   double tau_so1;       // tau_so minimo
   double tau_so2;       // tau_so massimo
   double k_so;          // slope della sigmoide per tau_so
-  double u_so;          // punto di mezzo della sigmoide
+  double v_so;          // punto di mezzo della sigmoide
 
-  // --- Parametri per s (quarta variabile, morfologia AP) ---
-  double tau_s1;        // tau_s quando u < theta_w
-  double tau_s2;        // tau_s quando u > theta_w
-  double k_s;           // slope della tanh per s_inf
-  double u_s;           // punto di mezzo della tanh
+  // --- Parametri per w3 (quarta variabile, morfologia AP) ---
+  double tau_w3_1;        // tau_w3 quando v < theta_w2
+  double tau_w3_2;        // tau_w3 quando v > theta_w2
+  double k_w3;           // slope della tanh per w3_inf
+  double v_w3;           // punto di mezzo della tanh
 
   // --- Parametri per J_si (slow inward - calcio) ---
   double tau_si;
 
-  // --- Parametri per w_inf ---
-  double tau_w_inf;     // usato nel calcolo di w_inf
-  double w_inf_star;    // valore di w_inf quando u > theta_o
+  // --- Parametri per w2_inf ---
+  double tau_w2_inf;     // usato nel calcolo di w2_inf
+  double w2_inf_star;    // valore di w2_inf quando v > theta_o
 
   // --- Diffusione ---
-  // D = 1.171 cm^2/s dal paper (Appendice A)
-  // Qui in unità adimensionali del modello
-  double D = 0.1171;        // adattato alle unità del problema
+  // // D = 1.171 cm^2/s dal paper (Appendice A)
+  // // Qui in unità adimensionali del modello
+  // double D = 0.1171;        // adattato alle unità del problema
 
+  
+  static constexpr double beta_mm = 140.0; // surface-to-volume ratio in mm^-1
+  static constexpr double Cm = 0.01e-6;    // membrane capacitance in F/mm^2 (0.01 μF/mm^2)
+
+  static constexpr double sigma_i_long = 0.17;  // intracellular longitudinal conductivity S/m
+  static constexpr double sigma_e_long = 0.62;  // extracellular longitudinal conductivity S/m
+  static constexpr double sigma_i_trans = 0.019; // intracellular transverse conductivity S/m
+  static constexpr double sigma_e_trans = 0.24;  // extracellular transverse conductivity S/m
+  
   // per modello anisotropico
   Tensor<2, 3> diffusion_tensor;
   

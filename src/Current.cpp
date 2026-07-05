@@ -7,8 +7,8 @@ const char* model_file = "models/models.cvs";
 
 void Current::set_model(const std::string& model){
   std::string current_model;
-  const char* csv_keys[]{"model","u_o","u_u","theta_v","theta_w","theta_v_m","theta_o","tau_v1m","tau_v2m","tau_v_p","tau_w1_m","tau_w2_m","k_w_m","u_w_m","tau_w_p","tau_fi","tau_o1","tau_o2","tau_so1","tau_so2","k_so","u_so","tau_s1","tau_s2","k_s","u_s","tau_si","tau_w_inf","w_inf_star"};
-  const void* parameters_list[]{&current_model,&u_o,&u_u,&theta_v,&theta_w,&theta_v_m,&theta_o,&tau_v1m,&tau_v2m,&tau_v_p,&tau_w1_m,&tau_w2_m,&k_w_m,&u_w_m,&tau_w_p,&tau_fi,&tau_o1,&tau_o2,&tau_so1,&tau_so2,&k_so,&u_so,&tau_s1,&tau_s2,&k_s,&u_s,&tau_si,&tau_w_inf,&w_inf_star};
+  const char* csv_keys[]{"model","v_o","v_u","theta_w1","theta_w2","theta_w1_m","theta_o","tau_w1_1_m","tau_w1_2_m","tau_w1_p","tau_w2_1_m","tau_w2_2_m","k_w2_m","v_w2_m","tau_w2_p","tau_fi","tau_o1","tau_o2","tau_so1","tau_so2","k_so","v_so","tau_s1","tau_w3_2","k_w3","v_w3","tau_si","tau_w2_inf","w2_inf_star"};
+  const void* parameters_list[]{&current_model,&v_o,&v_u,&theta_w1,&theta_w2,&theta_w1_m,&theta_o,&tau_w1_1_m,&tau_w1_2_m,&tau_w1_p,&tau_w2_1_m,&tau_w2_2_m,&k_w2_m,&v_w2_m,&tau_w2_p,&tau_fi,&tau_o1,&tau_o2,&tau_so1,&tau_so2,&k_so,&v_so,&tau_w3_1,&tau_w3_2,&k_w3,&v_w3,&tau_si,&tau_w2_inf,&w2_inf_star};
   constexpr size_t num_parameters = sizeof(csv_keys) / sizeof(char*);
   // std::unordered_map<std::string, size_t> parameter_indices;
 
@@ -105,14 +105,6 @@ Current::setup()
 
   // Initialize anisotropic diffusion tensor from monodomain conductivities.
   {
-    const double beta_mm = 140.0; // surface-to-volume ratio in mm^-1
-    const double Cm = 0.01e-6;    // membrane capacitance in F/mm^2 (0.01 μF/mm^2)
-
-    const double sigma_i_long = 0.17;  // intracellular longitudinal conductivity S/m
-    const double sigma_e_long = 0.62;  // extracellular longitudinal conductivity S/m
-    const double sigma_i_trans = 0.019; // intracellular transverse conductivity S/m
-    const double sigma_e_trans = 0.24;  // extracellular transverse conductivity S/m
-
     const double sigma_long = sigma_i_long * sigma_e_long /
                               (sigma_i_long + sigma_e_long);
     const double sigma_trans = sigma_i_trans * sigma_e_trans /
@@ -129,8 +121,9 @@ Current::setup()
     diffusion_tensor[1][1] = D_trans;
     diffusion_tensor[2][2] = D_trans;
 
-    pcout << "  Diffusion tensor initialized: D_long = " << D_long
-          << ", D_trans = " << D_trans << std::endl;
+    pcout << "Diffusion tensor initialized:" << std::endl
+          << "  D_long = " << D_long << std::endl
+          << "  D_trans = " << D_trans << std::endl;
   }
 
   // Initialize the finite element space.
@@ -183,26 +176,22 @@ Current::setup()
     pcout << "  Initializing vectors" << std::endl;
     system_rhs.reinit(locally_owned_dofs, MPI_COMM_WORLD);
 
-    solution_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-    solution.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    v.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    v_ghost.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
 
-    Time.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    activation_time.reinit(locally_owned_dofs, MPI_COMM_WORLD);
 
-    v_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-    w_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-    s_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    w1.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    w2.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    w3.reinit(locally_owned_dofs, MPI_COMM_WORLD);
 
-    // v.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
-    // w.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
-    // s.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    J_fi.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    J_so.reinit(locally_owned_dofs, MPI_COMM_WORLD);
+    J_si.reinit(locally_owned_dofs, MPI_COMM_WORLD);
 
-    J_fi_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-    J_so_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-    J_si_owned.reinit(locally_owned_dofs, MPI_COMM_WORLD);
-
-    J_fi.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
-    J_so.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
-    J_si.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    J_fi_ghost.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    J_so_ghost.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
+    J_si_ghost.reinit(locally_owned_dofs, locally_relevant_dofs, MPI_COMM_WORLD);
   }
 
   {
@@ -273,155 +262,66 @@ void Current::integrate_auxiliar_variables(){
   double v_owned_old;
   double w_owned_old;
   double s_owned_old;
-  for (auto i: solution_owned.locally_owned_elements()){
-    v_owned_old = v_owned[i];
-    w_owned_old = w_owned[i];
-    s_owned_old = s_owned[i];
+  for (auto i: v.locally_owned_elements()){
+    v_owned_old = w1[i];
+    w_owned_old = w2[i];
+    s_owned_old = w3[i];
     
-    if(solution_owned[i]< theta_v_m)
-      v_owned[i] = v_owned_old + delta_t * (1-v_owned_old)/tau_v1m;
-    else if(solution_owned[i]<theta_v)
-      v_owned[i] = v_owned_old + delta_t *(-v_owned_old/tau_v2m);
+    if(v[i]< theta_w1_m)
+      w1[i] = v_owned_old + delta_t * (1-v_owned_old)/tau_w1_1_m;
+    else if(v[i]<theta_w1)
+      w1[i] = v_owned_old + delta_t *(-v_owned_old/tau_w1_2_m);
     else
-      v_owned[i] = v_owned_old + delta_t *(-v_owned_old/tau_v_p);
+      w1[i] = v_owned_old + delta_t *(-v_owned_old/tau_w1_p);
 
 
     double denom;
-    denom = tau_w1_m + 0.5*(tau_w2_m - tau_w1_m)*(1+ tanh(k_w_m*(solution_owned[i]-u_w_m)));
+    denom = tau_w2_1_m + 0.5*(tau_w2_2_m - tau_w2_1_m)*(1+ tanh(k_w2_m*(v[i]-v_w2_m)));
 
-    if(solution_owned[i]< theta_o)
-      w_owned[i] = w_owned_old + delta_t * (1 - solution_owned[i] /tau_w_inf - w_owned_old)/ denom;
-    else if(solution_owned[i]<theta_w)    
-      w_owned[i] = w_owned_old + delta_t *  (w_inf_star-w_owned_old) / denom;
+    if(v[i]< theta_o)
+      w2[i] = w_owned_old + delta_t * (1 - v[i] /tau_w2_inf - w_owned_old)/ denom;
+    else if(v[i]<theta_w2)    
+      w2[i] = w_owned_old + delta_t *  (w2_inf_star-w_owned_old) / denom;
     else
-      w_owned[i] = w_owned_old + delta_t * (-w_owned_old/tau_w_p);
+      w2[i] = w_owned_old + delta_t * (-w_owned_old/tau_w2_p);
 
 
     double num;
-    num = 1 + tanh(k_s*(solution_owned[i]-u_s)) - 2*s_owned_old;
+    num = 1 + tanh(k_w3*(v[i]-v_w3)) - 2*s_owned_old;
   
-    if(solution_owned[i]< theta_w)
-      s_owned[i] = s_owned_old + delta_t * num/(2*tau_s1);
+    if(v[i]< theta_w2)
+      w3[i] = s_owned_old + delta_t * num/(2*tau_w3_1);
     else
-      s_owned[i] = s_owned_old + delta_t *num/(2*tau_s2);
+      w3[i] = s_owned_old + delta_t *num/(2*tau_w3_2);
 
   }
 }
 
 void Current::compute_ionic_currents(){
-  for (auto i: solution_owned.locally_owned_elements()){
-    if (solution_owned[i] >= theta_v)
-      J_fi_owned[i] = v_owned[i] * (solution_owned[i] - theta_v) * (solution_owned[i] - u_u) / tau_fi;
+  for (auto i: v.locally_owned_elements()){
+    if (v[i] >= theta_w1)
+      J_fi[i] = w1[i] * (v[i] - theta_w1) * (v[i] - v_u) / tau_fi;
     else
-      J_fi_owned[i] = 0.0;
+      J_fi[i] = 0.0;
 
-    if(solution_owned[i] < theta_o)  
-      J_so_owned[i] = (solution_owned[i] - u_o)/tau_o1;
-    else if(solution_owned[i] < theta_w)  
-      J_so_owned[i] = (solution_owned[i] - u_o)/tau_o2;
+    if(v[i] < theta_o)  
+      J_so[i] = (v[i] - v_o)/tau_o1;
+    else if(v[i] < theta_w2)  
+      J_so[i] = (v[i] - v_o)/tau_o2;
     else
-      J_so_owned[i] = 2/(2*tau_so1 + (tau_so2-tau_so1)*( 1 + tanh(k_so*(solution_owned[i] - u_so))));
+      J_so[i] = 2/(2*tau_so1 + (tau_so2-tau_so1)*( 1 + tanh(k_so*(v[i] - v_so))));
     
-    if(solution_owned[i]>= theta_w)
-      J_si_owned[i] = -w_owned[i]*s_owned[i] / tau_si;
+    if(v[i]>= theta_w2)
+      J_si[i] = -w2[i]*w3[i] / tau_si;
     else
-      J_si_owned[i] = 0.0; 
+      J_si[i] = 0.0; 
 
   } 
 
-  J_fi = J_fi_owned;
-  J_so = J_so_owned;
-  J_si = J_si_owned;
+  J_fi_ghost = J_fi;
+  J_so_ghost = J_so;
+  J_si_ghost = J_si;
 }
-
-// void
-// Current::solve_ionic()
-// {
-//   MVParameters p; // parametri del modello MV
-
-//   // Iteriamo su tutti i DoF locali
-//   const IndexSet &locally_owned = dof_handler.locally_owned_dofs();
-
-//   for (const auto i : locally_owned)
-//     {
-//       // Leggi u, v, w, s al timestep precedente
-//       const double u = solution_old(i);
-//       const double v = var_v(i);
-//       const double w = var_w(i);
-//       const double s = var_s(i);
-
-//       // -------------------------------------------------------
-//       // Funzioni di Heaviside H(u - soglia)
-//       // H = 1 se u > soglia, 0 altrimenti
-//       // Governano quali canali sono aperti o chiusi
-//       // -------------------------------------------------------
-//       const double Hv  = (u > p.theta_v)  ? 1.0 : 0.0;
-//       const double Hw  = (u > p.theta_w)  ? 1.0 : 0.0;
-//       const double Hvm = (u > p.theta_v_m) ? 1.0 : 0.0;
-//       const double Ho  = (u > p.theta_o)  ? 1.0 : 0.0;
-
-//       // -------------------------------------------------------
-//       // Costanti di tempo dipendenti da u
-//       // Cambiano in base allo stato del voltaggio
-//       // -------------------------------------------------------
-
-//       // tau_v-: controlla velocita' di chiusura del canale Na
-//       const double tau_vm = (1.0 - Hvm) * p.tau_v1m
-//                           +        Hvm  * p.tau_v2m;
-
-//       // tau_w-: sigmoide, controlla chiusura del canale Ca
-//       const double tau_wm = p.tau_w1_m
-//                           + (p.tau_w2_m - p.tau_w1_m)
-//                           * (1.0 + std::tanh(p.k_w_m * (u - p.u_w))) / 2.0;
-
-//       // tau_s: controlla la quarta variabile s
-//       const double tau_s = (1.0 - Hw) * p.tau_s1
-//                          +        Hw  * p.tau_s2;
-
-//       // -------------------------------------------------------
-//       // Valori asintotici (a cosa tendono v, w, s)
-//       // -------------------------------------------------------
-
-//       // v_inf: a riposo (u basso) v tende a 1 (canale pronto)
-//       //        eccitato (u alto) v tende a 0 (canale inattivato)
-//       const double v_inf = (u > p.theta_vm) ? 0.0 : 1.0;
-
-//       // w_inf: dipende da u tramite theta_o
-//       const double w_inf = (1.0 - Ho) * (1.0 - u / p.tau_winf)
-//                          +        Ho  * p.w_inf_star;
-
-//       // s_inf: sigmoide centrata in u_s
-//       const double s_inf = (1.0 + std::tanh(p.k_s * (u - p.u_s))) / 2.0;
-
-//       // -------------------------------------------------------
-//       // Euler esplicito per le tre ODE
-//       //
-//       // dv/dt = (1-Hv)*(v_inf - v)/tau_vm - Hv*v/tau_vp
-//       //   - quando u < theta_v: v recupera verso v_inf
-//       //   - quando u > theta_v: v decade (canale si inattiva)
-//       //
-//       // dw/dt = (1-Hw)*(w_inf - w)/tau_wm - Hw*w/tau_wp
-//       //   - stessa logica per il canale calcio
-//       //
-//       // ds/dt = (s_inf - s) / tau_s
-//       //   - s segue sempre s_inf con costante tau_s
-//       // -------------------------------------------------------
-//       var_v(i) += delta_t * ((1.0 - Hv) * (v_inf - v) / tau_vm
-//                             -        Hv  *  v          / p.tau_vp);
-
-//       var_w(i) += delta_t * ((1.0 - Hw) * (w_inf - w) / tau_wm
-//                             -        Hw  *  w          / p.tau_wp);
-
-//       var_s(i) += delta_t * (s_inf - s) / tau_s;
-//     }
-
-//   // Comunica i valori aggiornati tra i processi MPI
-//   var_v.compress(VectorOperation::insert);
-//   var_w.compress(VectorOperation::insert);
-//   var_s.compress(VectorOperation::insert);
-// }
-
-// ============================================================
 
  void
  Current::assemble()
@@ -466,12 +366,12 @@ void Current::compute_ionic_currents(){
        cell_rhs    = 0.0;
 
        // Evaluate the old solution and its gradient on quadrature nodes.
-       fe_values.get_function_values(solution, solution_old_values);
-       fe_values.get_function_gradients(solution, solution_old_grads);
+       fe_values.get_function_values(v_ghost, solution_old_values);
+       fe_values.get_function_gradients(v_ghost, solution_old_grads);
 
-       fe_values.get_function_values(J_fi, J_fi_values);
-       fe_values.get_function_values(J_so, J_so_values);
-       fe_values.get_function_values(J_si, J_si_values);
+       fe_values.get_function_values(J_fi_ghost, J_fi_values);
+       fe_values.get_function_values(J_so_ghost, J_so_values);
+       fe_values.get_function_values(J_si_ghost, J_si_values);
 
        for (unsigned int q = 0; q < n_q; ++q)
          {
@@ -519,7 +419,7 @@ void Current::compute_ionic_currents(){
 void
 Current::solve_linear_system()
 {
-  solver->solve(solution_owned, system_rhs);
+  solver->solve(v, system_rhs);
   pcout << solver->get_iterations() << " " << solver->get_name() << " iterations" << std::endl;
 }
 
@@ -528,15 +428,15 @@ Current::output() const
 {
   DataOut<dim> data_out;
 
-  data_out.add_data_vector(dof_handler, solution, "membrane tension");
+  data_out.add_data_vector(dof_handler, v_ghost, "membrane tension");
 
-  data_out.add_data_vector(dof_handler, v_owned, "v");
-  data_out.add_data_vector(dof_handler, w_owned, "w");
-  data_out.add_data_vector(dof_handler, s_owned, "s");
+  data_out.add_data_vector(dof_handler, w1, "w1");
+  data_out.add_data_vector(dof_handler, w2, "w2");
+  data_out.add_data_vector(dof_handler, w3, "w3");
   
-  data_out.add_data_vector(dof_handler, J_fi_owned, "J_fi");
-  data_out.add_data_vector(dof_handler, J_so_owned, "J_so");
-  data_out.add_data_vector(dof_handler, J_si_owned, "J_si");
+  data_out.add_data_vector(dof_handler, J_fi, "J_fi");
+  data_out.add_data_vector(dof_handler, J_so, "J_so");
+  data_out.add_data_vector(dof_handler, J_si, "J_si");
 
   // Add vector for parallel partition.
   std::vector<unsigned int> partition_int(mesh.n_active_cells());
@@ -557,13 +457,13 @@ Current::output() const
 
 
 void
-Current::activation_time()
+Current::check_activation_time()
 {  
   has_non_activated_cells = false;
-  for (auto i: Time.locally_owned_elements())
-    if (std::isnan(Time[i])){
-      if (solution[i] > 84/85.7)
-        Time[i] = time;
+  for (auto i: activation_time.locally_owned_elements())
+    if (std::isnan(activation_time[i])){
+      if (v_ghost[i] > 84/85.7)
+        activation_time[i] = time;
       else
         has_non_activated_cells = true;
     }
@@ -576,7 +476,7 @@ Current::output_activation_time() const
 {
   DataOut<dim> data_out;
 
-  data_out.add_data_vector(dof_handler, Time, "Activation Time");
+  data_out.add_data_vector(dof_handler, activation_time, "Activation Time");
 
   std::filesystem::path output_file_path(output_file_name);
   std::filesystem::current_path(output_file_path.parent_path());
@@ -605,24 +505,24 @@ Current::run()
   {
     setup();
 
-    VectorTools::interpolate(dof_handler, Functions::ZeroFunction<dim>(), solution_owned);
-    solution = solution_owned;
+    VectorTools::interpolate(dof_handler, Functions::ZeroFunction<dim>(), v);
+    v_ghost = v;
       
    
-    for (auto i : Time.locally_owned_elements())
-      Time[i] = NAN;
+    for (auto i : activation_time.locally_owned_elements())
+      activation_time[i] = NAN;
 
     // -------------------------------------------------------
     // Iniziliaze the auxilial values to initial conditions.
-    //   v = 1 -> canale sodium channel ready to be opened
-    //   w = 1 -> calcium channel ready to be opened  
-    //   s = 0 -> 4-th setted to zero
+    //   w1 = 1 -> canale sodium channel ready to be opened
+    //   w2 = 1 -> calcium channel ready to be opened  
+    //   w3 = 0 -> 4-th setted to zero
     // -------------------------------------------------------
-    VectorTools::interpolate(dof_handler, Functions::ConstantFunction<dim>(1.0), v_owned);
-    VectorTools::interpolate(dof_handler, Functions::ConstantFunction<dim>(1.0), w_owned);
-    VectorTools::interpolate(dof_handler, Functions::ZeroFunction<dim>(), s_owned);
+    VectorTools::interpolate(dof_handler, Functions::ConstantFunction<dim>(1.0), w1);
+    VectorTools::interpolate(dof_handler, Functions::ConstantFunction<dim>(1.0), w2);
+    VectorTools::interpolate(dof_handler, Functions::ZeroFunction<dim>(), w3);
 
-    pcout << "  Ionic variables initialized (v=1, w=1, s=0)" << std::endl;
+    pcout << "  Ionic variables initialized (w1=1, w2=1, w3=0)" << std::endl;
 
     compute_ionic_currents();
 
@@ -652,10 +552,10 @@ Current::run()
       solve_linear_system();
 
       // Perform parallel communication to update the ghost values of the
-      // solution vector.
-      solution = solution_owned;
+      // v vector.
+      v_ghost = v;
 
-      activation_time();
+      check_activation_time();
 
 //      output();
     }

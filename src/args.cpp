@@ -52,20 +52,26 @@ void Args::print_help_and_exit(int exit_status)
 
     os << "Usage: " << command << " [options]\n"
       << "Options:\n"
-      << "  -h, --help            Show this help message and exit\n"
-      << "  -m, --model <name>    Set the model name (default: " << model << ")\n";
+      << "  -h, --help                  Show this help message and exit\n"
+      << "  -m, --model <name>          Set the model name (default: " << model << ")\n";
     if (!available_models.empty()) {
-      os << "                        Available models: " << available_models << "\n";
+      os << "                              Available models: " << available_models << "\n";
     }
-    os << "  -o, --output <file>   Set the output file name\n"
-      << "  -s, --solver <name>   Set the solver type (cg, gmres, direct) (default: " << (solver ? solver->get_name() : "none") << ")\n"
-      << "  --delta_t <val>       Set delta_t in ms (default: " << delta_t << ")\n"
-      << "  --max_time <val>      Set max_time in ms (default: " << max_time << ")\n"
-      << "  --mesh_size <val>     Set mesh_size in mm (default: " << mesh_size << ")\n"
-      << "  --theta <val>         Set theta for theta-method for time discretization (default: " << theta << ")\n"
-      << "  --implicit_euler      Set theta = 1.0\n"
-      << "  --explicit_euler      Set theta = 0.0\n"
-      << "  --crank_nicolson      Set theta = 0.5\n";
+    os << "  -o, --output <file>         Set the output file name\n"
+      << "  -s, --solver <name>         Set the solver type (cg, gmres, direct) (default: " << (solver ? solver->get_name() : "none") << ")\n"
+      << "  -p, --preconditioner <name> Set the preconditioner type (jacobi, ilu, ssor) (default: " << DEFAULT_PRECONDITIONER << ")\n"
+      << "  --max_iter <val>            Set max steps for iterative solver (default: " << DEFAULT_MAX_ITER << ")\n"
+      << "  --tol <val>                 Set tolerance for iterative solver (default: " << DEFAULT_TOLERANCE << ")\n"
+      << "  --reduce <val>              Set reduction factor for iterative solver (default: " << DEFAULT_REDUCE_FACTOR << ")\n"
+      << "  --ilu_fill <val>            Set fill-in for ILU preconditioner (default: " << DEFAULT_ILU_FILL_IN << ")\n"
+      << "  --ssor_omega <val>          Set omega for SSOR preconditioner (default: " << DEFAULT_SSOR_OMEGA << ")\n"
+      << "  --delta_t <val>             Set delta_t in ms (default: " << delta_t << ")\n"
+      << "  --max_time <val>            Set max_time in ms (default: " << max_time << ")\n"
+      << "  --mesh_size <val>           Set mesh_size in mm (default: " << mesh_size << ")\n"
+      << "  --theta <val>               Set theta for theta-method for time discretization (default: " << theta << ")\n"
+      << "  --implicit_euler            Set theta = 1.0\n"
+      << "  --explicit_euler            Set theta = 0.0\n"
+      << "  --crank_nicolson            Set theta = 0.5\n";
   }
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
