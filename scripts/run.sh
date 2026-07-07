@@ -24,14 +24,18 @@ if [ "$is_node" = true ]; then
   PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
   cd "$PROJECT_ROOT"
   
-  echo "=== Starting Apptainer Image Build ==="
-  # Build the Apptainer image
-  apptainer build --fakeroot dealii_paraview.sif dealii_paraview.def
-  if [ $? -ne 0 ]; then
-    echo "Error: Apptainer build failed!"
-    exit 1
+  if [ ! -f "dealii_paraview.sif" ]; then
+    echo "=== Starting Apptainer Image Build ==="
+    # Build the Apptainer image
+    apptainer build --fakeroot dealii_paraview.sif dealii_paraview.def
+    if [ $? -ne 0 ]; then
+      echo "Error: Apptainer build failed!"
+      exit 1
+    fi
+    echo "=== Apptainer Image Build Completed ==="
+  else
+    echo "=== Apptainer Image dealii_paraview.sif already exists. Skipping build. ==="
   fi
-  echo "=== Apptainer Image Build Completed ==="
 
   echo "=== Starting Project Compilation ==="
   mkdir -p build

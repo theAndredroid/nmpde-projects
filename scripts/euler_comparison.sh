@@ -5,6 +5,12 @@
 # -j oe merges stdout and stderr logs
 PBS_parameters="-q cpu -l ncpus=28 -j oe"
 
+# Handle plotting command directly
+if [ "$1" == "--plot" ]; then
+  pvpython "$(dirname "$0")/plot_euler_comparison.py" "${@:2}"
+  exit $?
+fi
+
 # Check if we are running inside the compute node and parse parameters
 is_node=false
 method_flag=""
@@ -71,8 +77,18 @@ else
   echo $SCRIPT
   
   # Submit a separate PBS job for each time integration method
+  job_ids=""
   for method in "${methods[@]}"; do
     echo "Submitting job for method: $method"
-    qsub -N $method $PBS_parameters -- $SCRIPT "--${method}" --node-exec
+    job_id=$(qsub -N $method $PBS_parameters -- $SCRIPT "--${method}" --node-exec)
+    job_id=$(echo "$job_id" | tr -d '[:space:]')
+    if [ -z "$job_ids" ]; then
+      job_ids="${job_id}"
+    else
+      job_ids="${job_ids}:${job_id}"
+    fi
   done
+
+  echo "Submitting dependent plotting job..."
+  qsub -W depend=afterany:${job_ids} -N plot_euler $PBS_parameters -- $SCRIPT --plot
 fi

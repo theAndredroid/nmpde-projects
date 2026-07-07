@@ -35,20 +35,22 @@ def text_plot(data):
         print("No data to display.")
         return
     print("\n=== Text-Based Performance Plot ===")
-    max_len = max(len(d[1]) for d in data)
+    max_len = max(len(d[0]) for d in data)
     
     # Times scale
-    max_time = max(d[2] for d in data)
+    max_time = max(d[1] for d in data)
     scale_time = 25.0 / max_time if max_time > 0 else 1.0
     
     # Iters scale
     max_iter = max(d[3] for d in data)
     scale_iter = 25.0 / max_iter if max_iter > 0 else 1.0
     
-    for job_id, config, time_s, avg_iter in data:
-        bar_time = '#' * int(time_s * scale_time)
-        bar_iter = '*' * int(avg_iter * scale_iter)
-        print(f"{config:<{max_len}} | Time: {bar_time:<25} ({time_s:.2f}m) | Iters: {bar_iter:<25} ({avg_iter:.1f})")
+    for config, mean_time, std_time, mean_iter, std_iter in data:
+        bar_time = '#' * int(mean_time * scale_time)
+        bar_iter = '*' * int(mean_iter * scale_iter)
+        time_str = f"{mean_time:.2f} ± {std_time:.2f}m" if std_time > 0 else f"{mean_time:.2f}m"
+        iter_str = f"{mean_iter:.1f} ± {std_iter:.1f}" if std_iter > 0 else f"{mean_iter:.1f}"
+        print(f"{config:<{max_len}} | Time: {bar_time:<25} ({time_str}) | Iters: {bar_iter:<25} ({iter_str})")
     print("===================================\n")
 
 def main():
@@ -67,22 +69,46 @@ def main():
         print(f"Error: No valid result data found in '{results_file}'.")
         sys.exit(1)
         
-    # Process iterations
-    data = []
+    from collections import defaultdict
+    import math
+    
+    # Group times and iterations by configuration
+    config_times = defaultdict(list)
+    config_iters = defaultdict(list)
     for job_id, config, time_s in raw_data:
         out_file = os.path.join(directory, f"{job_id}.out")
         avg_iter = parse_iterations(out_file)
-        data.append((job_id, config, time_s / 60.0, avg_iter))
+        config_times[config].append(time_s / 60.0)
+        config_iters[config].append(avg_iter)
         
+    def get_stats(vals):
+        if not vals:
+            return 0.0, 0.0
+        m = sum(vals) / len(vals)
+        if len(vals) > 1:
+            var = sum((x - m) ** 2 for x in vals) / (len(vals) - 1)
+            sd = math.sqrt(var)
+        else:
+            sd = 0.0
+        return m, sd
+
+    data = []
+    for config in config_times:
+        mean_time, std_time = get_stats(config_times[config])
+        mean_iter, std_iter = get_stats(config_iters[config])
+        data.append((config, mean_time, std_time, mean_iter, std_iter))
+
     # Attempt to plot with matplotlib
     try:
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
         
-        configs = [d[1] for d in data]
-        times = [d[2] for d in data]
-        iters = [d[3] for d in data]
+        configs = [d[0] for d in data]
+        mean_times = [d[1] for d in data]
+        std_times = [d[2] for d in data]
+        mean_iters = [d[3] for d in data]
+        std_iters = [d[4] for d in data]
         
         # Modern styling
         plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
@@ -91,14 +117,18 @@ def main():
         color_palette = ['#2b5c8f', '#4682b4', '#5f9ea0', '#66c2a5', '#3288bd', '#5e4fa2']
         colors = [color_palette[i % len(color_palette)] for i in range(len(data))]
         
-        # Plot 1: Execution Time (Bar Chart)
+        # Plot 1: Execution Time (Bar Chart with Std Dev)
         fig1, ax1 = plt.subplots(figsize=(10, max(5, len(data) * 0.8)))
-        bars1 = ax1.barh(configs, times, color=colors, edgecolor='none', height=0.6)
-        max_time = max(times) if times else 1.0
-        for bar in bars1:
+        bars1 = ax1.barh(configs, mean_times, xerr=std_times, color=colors, edgecolor='none', height=0.6,
+                          error_kw={'ecolor': '#7f8c8d', 'capsize': 4, 'elinewidth': 1.5})
+        max_limit = max(m + s for m, s in zip(mean_times, std_times)) if mean_times else 1.0
+        ax1.set_xlim(0, max_limit * 1.18)
+        
+        for bar, std in zip(bars1, std_times):
             width = bar.get_width()
-            ax1.text(width + (max_time * 0.015), bar.get_y() + bar.get_height()/2,
-                     f'{width:.2f}m',
+            label_text = f'{width:.2f} ± {std:.2f}m' if std > 0 else f'{width:.2f}m'
+            ax1.text(width + std + (max_limit * 0.015), bar.get_y() + bar.get_height()/2,
+                     label_text,
                      va='center', ha='left', fontsize=10, fontweight='bold', color='#2c3e50')
             
         ax1.set_xlabel('Execution Time (minutes)', fontsize=12, fontweight='bold', labelpad=10)
@@ -115,14 +145,18 @@ def main():
         plt.close(fig1)
         print(f"Successfully generated execution times plot: {output_image1}")
         
-        # Plot 2: Average Iterations (Bar Chart)
+        # Plot 2: Average Iterations (Bar Chart with Std Dev)
         fig2, ax2 = plt.subplots(figsize=(10, max(5, len(data) * 0.8)))
-        bars2 = ax2.barh(configs, iters, color=colors, edgecolor='none', height=0.6)
-        max_iter = max(iters) if iters else 1.0
-        for bar in bars2:
+        bars2 = ax2.barh(configs, mean_iters, xerr=std_iters, color=colors, edgecolor='none', height=0.6,
+                          error_kw={'ecolor': '#7f8c8d', 'capsize': 4, 'elinewidth': 1.5})
+        max_limit_iter = max(m + s for m, s in zip(mean_iters, std_iters)) if mean_iters else 1.0
+        ax2.set_xlim(0, max_limit_iter * 1.18)
+        
+        for bar, std in zip(bars2, std_iters):
             width = bar.get_width()
-            ax2.text(width + (max_iter * 0.015), bar.get_y() + bar.get_height()/2,
-                     f'{width:.1f}',
+            label_text = f'{width:.1f} ± {std:.1f}' if std > 0 else f'{width:.1f}'
+            ax2.text(width + std + (max_limit_iter * 0.015), bar.get_y() + bar.get_height()/2,
+                     label_text,
                      va='center', ha='left', fontsize=10, fontweight='bold', color='#2c3e50')
             
         ax2.set_xlabel('Average Iterations per Timestep', fontsize=12, fontweight='bold', labelpad=10)

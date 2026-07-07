@@ -5,6 +5,7 @@
 # -j oe merges stdout and stderr logs
 
 PBS_parameters="-q cpu -l ncpus=28 -j oe"
+number_repetition=10
 
 # Handle plotting command directly
 if [ "$1" == "--plot" ]; then
@@ -59,7 +60,7 @@ if [ "$is_node" = true ]; then
   TIMEFORMAT="%R"
   
   # Execute the simulation inside the Apptainer container and measure execution time
-  elapsed=$( { time mpirun apptainer exec ../../dealii_paraview.sif ./exercise-01 \
+  elapsed=$( { time mpirun apptainer exec ../dealii_paraview.sif ./exercise-01 \
     $config_args \
     -o /dev/null \
     > "./${OUTPUT_DIR}/${PBS_JOBID}.out" \
@@ -125,19 +126,21 @@ else
   for i in "${!configurations[@]}"; do
     config="${configurations[$i]}"
     desc="${descriptions[$i]}"
-    
-    if [ -z "$first_job_id" ]; then
-      echo "Submitting first job for configuration: $config ($desc)"
-      first_job_id=$(qsub -N $(echo $desc | tr ' ' '_' | tr -d '()') $PBS_parameters -- $SCRIPT $config --node-exec --desc "$desc")
-      first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
-      echo "First Job ID is: $first_job_id"
-      job_ids="${first_job_id}"
-    else
-      echo "Submitting job for configuration: $config ($desc)"
-      job_id=$(qsub -N $(echo $desc | tr ' ' '_' | tr -d '()' ) $PBS_parameters -- $SCRIPT $config --node-exec --first-job-id "$first_job_id" --desc "$desc")
-      job_id=$(echo "$job_id" | tr -d '[:space:]')
-      job_ids="${job_ids}:${job_id}"
-    fi
+    for ((j=0; j<number_repetition; j++)); do
+      
+      if [ -z "$first_job_id" ]; then
+        echo "Submitting first job for configuration: $config ($desc)"
+        first_job_id=$(qsub -N $(echo $desc | tr ' ' '_' | tr -d '()') $PBS_parameters -- $SCRIPT $config --node-exec --desc "$desc")
+        first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
+        echo "First Job ID is: $first_job_id"
+        job_ids="${first_job_id}"
+      else
+        echo "Submitting job for configuration: $config ($desc)"
+        job_id=$(qsub -N $(echo $desc | tr ' ' '_' | tr -d '()' ) $PBS_parameters -- $SCRIPT $config --node-exec --first-job-id "$first_job_id" --desc "$desc")
+        job_id=$(echo "$job_id" | tr -d '[:space:]')
+        job_ids="${job_ids}:${job_id}"
+      fi
+    done
   done
 
   echo "Submitting dependent plotting job..."

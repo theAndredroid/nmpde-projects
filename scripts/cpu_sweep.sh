@@ -3,6 +3,7 @@
 # PBS parameters for submission
 # -j oe merges stdout and stderr logs
 PBS_parameters="-q cpu -j oe"
+number_repetition=10
 
 # Handle plotting command directly
 if [ "$1" == "--plot" ]; then
@@ -71,7 +72,7 @@ if [ "$is_node" = true ]; then
     2>&1 )
   else
     # Run with mpirun using the specified number of CPUs
-    elapsed=$( { time mpirun -n $num_cpus apptainer exec ../../dealii_paraview.sif ./exercise-01 \
+    elapsed=$( { time mpirun -n $num_cpus apptainer exec ../dealii_paraview.sif ./exercise-01 \
       $config_args \
       -o /dev/null \
       > "./${OUTPUT_DIR}/${PBS_JOBID}.out" \
@@ -126,24 +127,26 @@ else
   job_ids=""
   for num_cpus in "${cpu_configs[@]}"; do
     desc="${num_cpus}_MPI"
-    qsub_cpus=$(( num_cpus / procs_for_cpu ))
-    if [ "$num_cpus" -eq 1 ]; then
-      qsub_cpus=1
-      desc="No_MPI"
-    fi
-    
-    if [ -z "$first_job_id" ]; then
-      echo "Submitting first job with $num_cpus CPUs ($desc)"
-      first_job_id=$(qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --cpus $num_cpus --desc "$desc")
-      first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
-      echo "First Job ID is: $first_job_id"
-      job_ids="${first_job_id}"
-    else
-      echo "Submitting job with $num_cpus CPUs ($desc)"
-      job_id=$(qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --first-job-id "$first_job_id" --cpus $num_cpus --desc "$desc")
-      job_id=$(echo "$job_id" | tr -d '[:space:]')
-      job_ids="${job_ids}:${job_id}"
-    fi
+    for ((i=0; i<number_repetition; i++)); do
+      qsub_cpus=$(( num_cpus / procs_for_cpu ))
+      if [ "$num_cpus" -eq 1 ]; then
+        qsub_cpus=1
+        desc="No_MPI"
+      fi
+      
+      if [ -z "$first_job_id" ]; then
+        echo "Submitting first job with $num_cpus CPUs ($desc)"
+        first_job_id=$(qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --cpus $num_cpus --desc "$desc")
+        first_job_id=$(echo "$first_job_id" | tr -d '[:space:]')
+        echo "First Job ID is: $first_job_id"
+        job_ids="${first_job_id}"
+      else
+        echo "Submitting job with $num_cpus CPUs ($desc)"
+        job_id=$(qsub -N "${desc}" $PBS_parameters -l ncpus=$qsub_cpus -- $SCRIPT --node-exec --first-job-id "$first_job_id" --cpus $num_cpus --desc "$desc")
+        job_id=$(echo "$job_id" | tr -d '[:space:]')
+        job_ids="${job_ids}:${job_id}"
+      fi
+    done
   done
 
   echo "Submitting dependent plotting job..."

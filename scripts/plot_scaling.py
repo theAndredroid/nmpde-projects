@@ -36,23 +36,25 @@ def text_plot(data):
         return
         
     # Sort by CPU count
-    data.sort(key=lambda x: int(re.match(r'^(\d+)', x[1]).group(1)) if re.match(r'^(\d+)', x[1]) else 0)
+    data.sort(key=lambda x: int(re.match(r'^(\d+)', x[0]).group(1)) if re.match(r'^(\d+)', x[0]) else 0)
         
     print("\n=== Text-Based Performance Plot ===")
-    max_len = max(len(d[1]) for d in data)
+    max_len = max(len(d[0]) for d in data)
     
     # Times scale
-    max_time = max(d[2] for d in data)
+    max_time = max(d[1] for d in data)
     scale_time = 25.0 / max_time if max_time > 0 else 1.0
     
     # Iters scale
     max_iter = max(d[3] for d in data)
     scale_iter = 25.0 / max_iter if max_iter > 0 else 1.0
     
-    for job_id, config, time_s, avg_iter in data:
-        bar_time = '#' * int(time_s * scale_time)
-        bar_iter = '*' * int(avg_iter * scale_iter)
-        print(f"{config:<{max_len}} | Time: {bar_time:<25} ({time_s:.2f}m) | Iters: {bar_iter:<25} ({avg_iter:.1f})")
+    for config, mean_time, std_time, mean_iter, std_iter in data:
+        bar_time = '#' * int(mean_time * scale_time)
+        bar_iter = '*' * int(mean_iter * scale_iter)
+        time_str = f"{mean_time:.2f} ± {std_time:.2f}m" if std_time > 0 else f"{mean_time:.2f}m"
+        iter_str = f"{mean_iter:.1f} ± {std_iter:.1f}" if std_iter > 0 else f"{mean_iter:.1f}"
+        print(f"{config:<{max_len}} | Time: {bar_time:<25} ({time_str}) | Iters: {bar_iter:<25} ({iter_str})")
     print("===================================\n")
 
 def main():
@@ -71,21 +73,41 @@ def main():
         print(f"Error: No valid result data found in '{results_file}'.")
         sys.exit(1)
         
-    # Process iterations
-    data = []
+    from collections import defaultdict
+    import math
+    
+    # Group times and iterations by configuration
+    config_times = defaultdict(list)
+    config_iters = defaultdict(list)
     for job_id, config, time_s in raw_data:
         out_file = os.path.join(directory, f"{job_id}.out")
         avg_iter = parse_iterations(out_file)
-        data.append((job_id, config, time_s / 60.0, avg_iter))
+        config_times[config].append(time_s / 60.0)
+        config_iters[config].append(avg_iter)
         
-    # Extract CPU counts and verify format
+    def get_stats(vals):
+        if not vals:
+            return 0.0, 0.0
+        m = sum(vals) / len(vals)
+        if len(vals) > 1:
+            var = sum((x - m) ** 2 for x in vals) / (len(vals) - 1)
+            sd = math.sqrt(var)
+        else:
+            sd = 0.0
+        return m, sd
+
+    data = []
     cpu_counts = []
-    for job_id, config, time_s, avg_iter in data:
+    for config in config_times:
+        mean_time, std_time = get_stats(config_times[config])
+        mean_iter, std_iter = get_stats(config_iters[config])
+        data.append((config, mean_time, std_time, mean_iter, std_iter))
+        
+        # parse cpu count
         match = re.match(r'^(\d+)', config)
         if match:
             cpu_counts.append(int(match.group(1)))
         else:
-            print(f"Warning: Configuration '{config}' does not match CPU count pattern. Defaulting CPU count to 1.")
             cpu_counts.append(1)
             
     # Attempt to plot with matplotlib
@@ -100,21 +122,27 @@ def main():
         # Sort CPU configurations numerically
         sorted_data = sorted(zip(cpu_counts, data), key=lambda x: x[0])
         sorted_cpus = [x[0] for x in sorted_data]
-        sorted_times = [x[1][2] for x in sorted_data]
+        sorted_configs = [x[1][0] for x in sorted_data]
+        sorted_times = [x[1][1] for x in sorted_data]
+        std_times = [x[1][2] for x in sorted_data]
         sorted_iters = [x[1][3] for x in sorted_data]
+        std_iters = [x[1][4] for x in sorted_data]
         
-        # Setup ticks and labels (CPU 0 runs sequentially)
+        # Setup ticks and labels using sorted_configs names
         x_ticks = sorted_cpus
-        x_labels = [str(x) if x > 0 else '0 (No MPI)' for x in x_ticks]
+        x_labels = sorted_configs
         
-        # Plot 1: Execution Time (Line Plot)
+        # Plot 1: Execution Time (Line Plot with Std Dev)
         fig1, ax1 = plt.subplots(figsize=(8, 5))
-        ax1.plot(sorted_cpus, sorted_times, marker='o', markersize=6, linewidth=2, color='#2b5c8f', label='Execution Time')
+        ax1.errorbar(sorted_cpus, sorted_times, yerr=std_times, marker='o', markersize=6, linewidth=2, color='#2b5c8f',
+                     ecolor='#7f8c8d', capsize=4, elinewidth=1.5, label='Execution Time')
         
         # Add labels above points
-        max_time = max(sorted_times) if sorted_times else 1.0
-        for x, y in zip(sorted_cpus, sorted_times):
-            ax1.text(x, y + (max_time * 0.03), f'{y:.2f}m', 
+        max_time = max(m + s for m, s in zip(sorted_times, std_times)) if sorted_times else 1.0
+        ax1.set_ylim(0, max_time * 1.18)
+        for x, y, std in zip(sorted_cpus, sorted_times, std_times):
+            label_text = f'{y:.2f}±{std:.2f}m' if std > 0 else f'{y:.2f}m'
+            ax1.text(x, y + std + (max_time * 0.03), label_text, 
                      ha='center', va='bottom', fontsize=9, fontweight='bold', color='#2c3e50')
         
         ax1.set_xlabel('Number of MPI proccesses', fontsize=12, fontweight='bold', labelpad=10)
@@ -134,14 +162,17 @@ def main():
         plt.close(fig1)
         print(f"Successfully generated execution times line plot: {output_image1}")
         
-        # Plot 2: Average Iterations (Line Plot)
+        # Plot 2: Average Iterations (Line Plot with Std Dev)
         fig2, ax2 = plt.subplots(figsize=(8, 5))
-        ax2.plot(sorted_cpus, sorted_iters, marker='s', markersize=6, linewidth=2, color='#e74c3c', label='Average Iterations')
+        ax2.errorbar(sorted_cpus, sorted_iters, yerr=std_iters, marker='s', markersize=6, linewidth=2, color='#e74c3c',
+                     ecolor='#7f8c8d', capsize=4, elinewidth=1.5, label='Average Iterations')
         
         # Add labels above points
-        max_iter = max(sorted_iters) if sorted_iters else 1.0
-        for x, y in zip(sorted_cpus, sorted_iters):
-            ax2.text(x, y + (max_iter * 0.03 if max_iter > 0 else 0.2), f'{y:.1f}', 
+        max_iter = max(m + s for m, s in zip(sorted_iters, std_iters)) if sorted_iters else 1.0
+        ax2.set_ylim(0, max_iter * 1.18)
+        for x, y, std in zip(sorted_cpus, sorted_iters, std_iters):
+            label_text = f'{y:.1f}±{std:.1f}' if std > 0 else f'{y:.1f}'
+            ax2.text(x, y + std + (max_iter * 0.03 if max_iter > 0 else 0.2), label_text, 
                      ha='center', va='bottom', fontsize=9, fontweight='bold', color='#2c3e50')
         
         ax2.set_xlabel('Number of MPI proccesses', fontsize=12, fontweight='bold', labelpad=10)

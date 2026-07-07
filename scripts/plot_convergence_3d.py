@@ -19,12 +19,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from mpl_toolkits.mplot3d import Axes3D
 
-try:
-    from paraview.simple import *
-    import paraview.servermanager as sm
-    HAS_PARAVIEW = True
-except ImportError:
-    HAS_PARAVIEW = False
+# No paraview dependency needed, pure VTK reader used below
 
 def find_latest_convergence_dir(base_dir="build"):
     candidates = glob.glob(os.path.join(base_dir, "*_convergence"))
@@ -53,13 +48,26 @@ def extract_h_dt_from_folder(folder_path):
     return None, None
 
 def read_max_activation_time(pvtu_files):
-    reader = XMLPartitionedUnstructuredGridReader(registrationName='reader', FileName=pvtu_files)
-    reader.UpdatePipeline()
-    fetched = sm.Fetch(reader)
-    arr = fetched.GetPointData().GetArray('Activation Time')
-    max_act = arr.GetRange()[1] if arr else 0.0
-    Delete(reader)
-    return max_act
+    from vtkmodules.vtkIOXML import vtkXMLPUnstructuredGridReader, vtkXMLUnstructuredGridReader
+    
+    if isinstance(pvtu_files, list):
+        pvtu_file = pvtu_files[0]
+    else:
+        pvtu_file = pvtu_files
+        
+    if pvtu_file.endswith('.pvtu'):
+        reader = vtkXMLPUnstructuredGridReader()
+    else:
+        reader = vtkXMLUnstructuredGridReader()
+        
+    reader.SetFileName(pvtu_file)
+    reader.Update()
+    grid = reader.GetOutput()
+    arr = grid.GetPointData().GetArray('Activation Time')
+    if arr:
+        # GetRange(0) returns tuple (min, max) for component 0
+        return arr.GetRange(0)[1]
+    return 0.0
 
 def interpolate_2d_grid(unique_x, unique_y, Z, num_x=100, num_y=100):
     x_fine = np.linspace(unique_x[0], unique_x[-1], num_x)

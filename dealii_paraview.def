@@ -14,6 +14,7 @@ From: dealii/dealii:master-jammy
 
 %environment
     export LC_ALL=C
+    export PYTHONPATH=/usr/lib/python3/dist-packages:/usr/local/lib/python3.10/dist-packages:$PYTHONPATH
 
 %runscript
     exec "$@"
