@@ -209,6 +209,100 @@ def plot_combined_activation_line(all_line_data, output_png):
     plt.close(fig)
     print(f"  [+] Saved combined line plot to: {output_png}")
 
+    # Plot 2: Standalone Zoomed Plot (x < 1.0)
+    fig_zoom, ax_zoom = plt.subplots(figsize=(10, 6))
+    for model_name, (dist, act_time) in sorted(all_line_data.items()):
+        color = model_colors.get(model_name.upper())
+        if not color:
+            color = color_cycle[color_idx % len(color_cycle)]
+            color_idx += 1
+        valid = ~np.isnan(act_time)
+        if np.any(valid):
+            ax_zoom.plot(dist[valid], act_time[valid], label=model_name, color=color, linewidth=2.5)
+            
+    ax_zoom.set_xlabel('Distance along line (0,0,0) -> (20,7,3) [mm]', fontsize=12, fontweight='bold', labelpad=10)
+    ax_zoom.set_ylabel('Activation Time [ms]', fontsize=12, fontweight='bold', labelpad=10)
+    ax_zoom.set_title('Activation Time Profile (Zoomed x < 1.0 mm)\nLine (0,0,0) to (20,7,3)', fontsize=13, fontweight='bold', pad=15)
+    ax_zoom.grid(True, linestyle='--', alpha=0.5)
+    ax_zoom.legend(fontsize=10, frameon=True, facecolor='white', edgecolor='#bdc3c7')
+    
+    ax_zoom.set_xlim(0.0, 1.0)
+    
+    # Calculate limits for y-axis in the zoomed range
+    y_vals_in_zoom = []
+    for dist, act_time in all_line_data.values():
+        valid_idx = (dist < 1.0) & (~np.isnan(act_time))
+        if np.any(valid_idx):
+            y_vals_in_zoom.extend(act_time[valid_idx])
+            
+    if y_vals_in_zoom:
+        ymin, ymax = min(y_vals_in_zoom), max(y_vals_in_zoom)
+        padding = (ymax - ymin) * 0.1 if ymax > ymin else 1.0
+        ax_zoom.set_ylim(ymin - padding, ymax + padding)
+        
+    ax_zoom.spines['top'].set_visible(False)
+    ax_zoom.spines['right'].set_visible(False)
+    ax_zoom.spines['left'].set_color('#bdc3c7')
+    ax_zoom.spines['bottom'].set_color('#bdc3c7')
+    
+    plt.tight_layout()
+    output_png_zoom = output_png.replace(".png", "_zoom.png")
+    plt.savefig(output_png_zoom, dpi=300)
+    plt.close(fig_zoom)
+    print(f"  [+] Saved zoomed line plot to: {output_png_zoom}")
+
+    # Plot 3: Combined Main Plot with Zoomed Inset (x < 1.0)
+    fig_inset, ax_main = plt.subplots(figsize=(10, 6))
+    for model_name, (dist, act_time) in sorted(all_line_data.items()):
+        color = model_colors.get(model_name.upper())
+        if not color:
+            color = color_cycle[color_idx % len(color_cycle)]
+            color_idx += 1
+        valid = ~np.isnan(act_time)
+        if np.any(valid):
+            ax_main.plot(dist[valid], act_time[valid], label=model_name, color=color, linewidth=2.5)
+            
+    ax_main.set_xlabel('Distance along line (0,0,0) -> (20,7,3) [mm]', fontsize=12, fontweight='bold', labelpad=10)
+    ax_main.set_ylabel('Activation Time [ms]', fontsize=12, fontweight='bold', labelpad=10)
+    ax_main.set_title('Activation Time Profile with Zoomed Inset\nLine (0,0,0) to (20,7,3)', fontsize=13, fontweight='bold', pad=15)
+    ax_main.grid(True, linestyle='--', alpha=0.5)
+    ax_main.legend(fontsize=10, frameon=True, facecolor='white', edgecolor='#bdc3c7')
+    
+    ax_main.spines['top'].set_visible(False)
+    ax_main.spines['right'].set_visible(False)
+    ax_main.spines['left'].set_color('#bdc3c7')
+    ax_main.spines['bottom'].set_color('#bdc3c7')
+    
+    # Position inset axes in the bottom-right corner [0.55, 0.15, 0.35, 0.35]
+    ax_ins = ax_main.inset_axes([0.55, 0.15, 0.35, 0.35])
+    for model_name, (dist, act_time) in sorted(all_line_data.items()):
+        color = model_colors.get(model_name.upper())
+        if not color:
+            color = color_cycle[color_idx % len(color_cycle)]
+            color_idx += 1
+        valid = ~np.isnan(act_time)
+        if np.any(valid):
+            ax_ins.plot(dist[valid], act_time[valid], color=color, linewidth=2.0)
+            
+    ax_ins.set_xlim(0.0, 1.0)
+    if y_vals_in_zoom:
+        ymin, ymax = min(y_vals_in_zoom), max(y_vals_in_zoom)
+        padding = (ymax - ymin) * 0.1 if ymax > ymin else 1.0
+        ax_ins.set_ylim(ymin - padding, ymax + padding)
+        
+    ax_ins.grid(True, linestyle=':', alpha=0.6)
+    
+    try:
+        ax_main.indicate_inset_zoom(ax_ins, edgecolor="black", alpha=0.3)
+    except Exception:
+        pass
+        
+    plt.tight_layout()
+    output_png_combined = output_png.replace(".png", "_combined.png")
+    plt.savefig(output_png_combined, dpi=300)
+    plt.close(fig_inset)
+    print(f"  [+] Saved combined line plot with inset to: {output_png_combined}")
+
 def render_only_legend(pvtu_path, output_png, min_val=None, max_val=None):
     """Render only the colorbar legend directly inside ParaView by hiding the model."""
     if not HAS_PARAVIEW:

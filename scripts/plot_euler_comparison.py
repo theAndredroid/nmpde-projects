@@ -218,5 +218,72 @@ def main():
     plt.close(fig_zoom)
     print(f"[Success] Zoomed comparison plot saved successfully to: {output_png_zoom}")
 
+    # Plot 3: Combined Main Plot with Zoomed Inset
+    fig_inset, ax_main = plt.subplots(figsize=(10, 6))
+    
+    # 1. Plot main curves on ax_main
+    for m, (dist, act_time) in sorted(all_line_data.items()):
+        color = method_colors.get(m, '#7f8c8d')
+        label = method_labels.get(m, m)
+        valid = ~np.isnan(act_time)
+        if np.any(valid):
+            ax_main.plot(dist[valid], act_time[valid], label=label, color=color, linewidth=2.5)
+            
+    ax_main.set_xlabel('Distance along line (0,0,0) -> (20,7,3) [mm]', fontsize=12, fontweight='bold', labelpad=10)
+    ax_main.set_ylabel('Activation Time [ms]', fontsize=12, fontweight='bold', labelpad=10)
+    ax_main.set_title('Activation Time Profile with Zoomed Inset\nLine (0,0,0) to (20,7,3)', fontsize=13, fontweight='bold', pad=15)
+    ax_main.grid(True, linestyle='--', alpha=0.5)
+    ax_main.legend(fontsize=10, frameon=True, facecolor='white', edgecolor='#bdc3c7')
+    
+    ax_main.spines['top'].set_visible(False)
+    ax_main.spines['right'].set_visible(False)
+    ax_main.spines['left'].set_color('#bdc3c7')
+    ax_main.spines['bottom'].set_color('#bdc3c7')
+    
+    # 2. Add inset axes
+    # Position: [x, y, width, height] as fractions of the main axes size
+    ax_ins = ax_main.inset_axes([0.55, 0.15, 0.35, 0.35])
+    
+    # Plot curves on ax_ins
+    for m, (dist, act_time) in sorted(all_line_data.items()):
+        color = method_colors.get(m, '#7f8c8d')
+        valid = ~np.isnan(act_time)
+        if np.any(valid):
+            ax_ins.plot(dist[valid], act_time[valid], color=color, linewidth=2.0)
+            
+    # Set inset limits
+    max_dist = 21.4
+    for dist, _ in all_line_data.values():
+        if len(dist) > 0:
+            max_dist = max(max_dist, np.max(dist))
+            
+    ax_ins.set_xlim(20.5, max_dist)
+    
+    # Set inset y-limits based on zoomed values
+    y_vals_in_zoom = []
+    for dist, act_time in all_line_data.values():
+        valid_idx = (dist >= 20.5) & (~np.isnan(act_time))
+        if np.any(valid_idx):
+            y_vals_in_zoom.extend(act_time[valid_idx])
+            
+    if y_vals_in_zoom:
+        ymin, ymax = min(y_vals_in_zoom), max(y_vals_in_zoom)
+        padding = (ymax - ymin) * 0.1 if ymax > ymin else 1.0
+        ax_ins.set_ylim(ymin - padding, ymax + padding)
+        
+    ax_ins.grid(True, linestyle=':', alpha=0.6)
+    
+    # Draw connections indicating the zoom region
+    try:
+        ax_main.indicate_inset_zoom(ax_ins, edgecolor="black", alpha=0.3)
+    except Exception:
+        pass
+        
+    plt.tight_layout()
+    output_png_combined = os.path.join(euler_dir, "euler_comparison_combined.png")
+    plt.savefig(output_png_combined, dpi=300)
+    plt.close(fig_inset)
+    print(f"[Success] Combined comparison plot with inset saved successfully to: {output_png_combined}")
+
 if __name__ == "__main__":
     main()
