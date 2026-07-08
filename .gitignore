@@ -37,3 +37,7 @@ build/*
 
 # vscode
 .vscode/*
+
+# Simulation outputs
+*.vtu
+*.pvtu

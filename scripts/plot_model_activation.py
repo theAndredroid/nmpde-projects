@@ -264,7 +264,7 @@ def plot_combined_activation_line(all_line_data, output_png):
             
     ax_main.set_xlabel('Distance along line (0,0,0) -> (20,7,3) [mm]', fontsize=12, fontweight='bold', labelpad=10)
     ax_main.set_ylabel('Activation Time [ms]', fontsize=12, fontweight='bold', labelpad=10)
-    ax_main.set_title('Activation Time Profile with Zoomed Inset\nLine (0,0,0) to (20,7,3)', fontsize=13, fontweight='bold', pad=15)
+    ax_main.set_title('Activation Time Profile along Line (0,0,0) to (20,7,3)', fontsize=13, fontweight='bold', pad=15)
     ax_main.grid(True, linestyle='--', alpha=0.5)
     ax_main.legend(fontsize=10, frameon=True, facecolor='white', edgecolor='#bdc3c7')
     

@@ -128,9 +128,9 @@ def main():
         sorted_iters = [x[1][3] for x in sorted_data]
         std_iters = [x[1][4] for x in sorted_data]
         
-        # Setup ticks and labels using sorted_configs names
+        # Setup ticks and labels using only the number of cores in use
         x_ticks = sorted_cpus
-        x_labels = sorted_configs
+        x_labels = [str(c) for c in sorted_cpus]
         
         # Plot 1: Execution Time (Line Plot with Std Dev)
         fig1, ax1 = plt.subplots(figsize=(8, 5))
@@ -145,7 +145,7 @@ def main():
             ax1.text(x, y + std + (max_time * 0.03), label_text, 
                      ha='center', va='bottom', fontsize=9, fontweight='bold', color='#2c3e50')
         
-        ax1.set_xlabel('Number of MPI proccesses', fontsize=12, fontweight='bold', labelpad=10)
+        ax1.set_xlabel('Number of cores in use', fontsize=12, fontweight='bold', labelpad=10)
         ax1.set_ylabel('Execution Time (minutes)', fontsize=12, fontweight='bold', labelpad=10)
         ax1.set_title('Scaling on parallel infrastructure', fontsize=14, fontweight='bold', pad=15)
         ax1.grid(True, linestyle='--', alpha=0.5)
@@ -175,7 +175,7 @@ def main():
             ax2.text(x, y + std + (max_iter * 0.03 if max_iter > 0 else 0.2), label_text, 
                      ha='center', va='bottom', fontsize=9, fontweight='bold', color='#2c3e50')
         
-        ax2.set_xlabel('Number of MPI proccesses', fontsize=12, fontweight='bold', labelpad=10)
+        ax2.set_xlabel('Number of cores in use', fontsize=12, fontweight='bold', labelpad=10)
         ax2.set_ylabel('Average Iterations per Timestep', fontsize=12, fontweight='bold', labelpad=10)
         ax2.set_title('Average Iterations based on MPI proccesses', fontsize=14, fontweight='bold', pad=15)
         ax2.grid(True, linestyle='--', alpha=0.5)
